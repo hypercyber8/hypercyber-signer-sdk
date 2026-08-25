@@ -1,1 +1,192 @@
-../../proto/vault/v1/vault.proto
+syntax = "proto3";
+package vault.v1;
+option go_package = "github.com/hypercyber8/hypercyber-signer-sdk/proto/vault/v1;vaultv1";
+
+// All wallets use threshold ECDSA. The former `version` field selected between
+// local single-key and threshold custody; local custody is gone, so there is
+// nothing left to select and the field is reserved rather than reused.
+message CreateRequest {
+  string markup    = 1;
+  string wallet_id = 2;
+  reserved 3;
+  reserved "version";
+}
+
+// WalletAttestation is one signer node's signed assertion that it holds a share
+// of this wallet.
+//
+// Verify these CLIENT-SIDE against node public keys learned out of band. A
+// client that skips this is taking the frontend's word that the address is
+// backed by a real threshold sharing — and a compromised frontend can generate a
+// key it alone knows and hand out its address instead.
+message WalletAttestation {
+  int32 party_id = 1;
+  bytes signature = 2;
+}
+
+message CreateResponse {
+  string wallet_id    = 1;
+  string ecdsa_pubkey = 2;
+  // attestations is populated on a distributed deployment: one entry per signer
+  // node that confirmed it holds a share of this wallet. Empty on a single-host
+  // deployment, where there is nothing independent to attest.
+  //
+  // A client that receives fewer than `threshold` valid attestations should
+  // treat the address as unverified and NOT fund it.
+  repeated WalletAttestation attestations = 3;
+  // group_pubkey is the 33-byte compressed group key. It is part of what the
+  // attestations commit to, so a client needs it to check them.
+  bytes  group_pubkey = 4;
+  int32  threshold    = 5;
+  repeated int32 all_ids = 6;
+}
+
+message SignByWalletRequest {
+  string wallet_id   = 1;
+  string request_id  = 2;
+  string network     = 3;
+  bytes  chain_id    = 4;
+  bytes  transaction = 6;
+}
+
+message SignByWalletResponse {
+  bytes signed_transaction = 1;
+}
+
+message SignByAddressRequest {
+  string address     = 1;
+  string request_id  = 2;
+  string network     = 3;
+  bytes  chain_id    = 4;
+  bytes  transaction = 6;
+}
+
+message SignByAddressResponse {
+  bytes signed_transaction = 1;
+}
+
+message TypedDataRequest {
+  string request_id       = 1;
+  string network          = 2;
+  // chain_id is routing and audit metadata only; it does NOT enter the signed
+  // pre-image. EIP-712 already carries the chain id inside the domain, and the
+  // vault signs keccak(0x19 || 0x01 || domain_separator || typed_data_hash) —
+  // so this field cannot change what gets signed and is optional.
+  //
+  // Authorization for this RPC attaches to domain_separator, which the server
+  // matches against the calling credential's allowed-typed-data-domains.
+  bytes  chain_id         = 3;
+  bytes  address          = 4;
+  // domain_separator and typed_data_hash are each exactly 32 bytes; the server
+  // rejects any other length rather than hashing a differently-shaped pre-image.
+  bytes  domain_separator = 5;
+  bytes  typed_data_hash  = 6;
+  // action describes WHAT is being signed, so the server can authorize it rather
+  // than only sign it. Optional; see HyperliquidAction.
+  HyperliquidAction action = 7;
+  // message describes a NON-Hyperliquid EIP-712 payload the same way: a
+  // registered struct type over an explicit domain. At most one of action and
+  // message may be set — two descriptions of one digest cannot both be checked,
+  // and picking either would let a caller attach a benign description beside the
+  // real one.
+  //
+  // It exists because "describe what you are signing" cannot be a Hyperliquid-only
+  // rule. A vault that enforced descriptions but could only describe one
+  // application would have to exempt every other payload, and an exemption is a
+  // hole whatever it is called. EIP-3009 is the second family; the shape below is
+  // general, so the third costs a type registration and no protocol change.
+  Eip712Message message = 8;
+}
+
+// Eip712Message is a described EIP-712 struct: which registered type it is, the
+// domain PARTS, and the value of every field that type signs over.
+//
+// The domain travels in PARTS and never as a separator, and that is the whole
+// point rather than a detail. A caller that hands over 32 bytes has ASSERTED a
+// domain; a caller that hands over name, version, chainId and verifyingContract
+// has stated one the vault rebuilds and checks against the separator being
+// signed. So verifyingContract — which for a token authorization IS the token —
+// becomes a verified field instead of a claim, and a policy over it is a policy
+// over something real.
+message Eip712Message {
+  // primary_type is the registered struct, e.g. "TransferWithAuthorization".
+  // A type this build cannot describe is REFUSED, never passed through: a
+  // payload the vault cannot check is one it must not vouch for.
+  string primary_type = 1;
+  Eip712Domain domain = 2;
+  // fields holds every field of primary_type, keyed by name: an address or a
+  // bytes32 as 0x-prefixed hex, an integer as a DECIMAL STRING. Strings because
+  // a uint256 has no lossless numeric representation here, and a rounded amount
+  // would authorize a transfer nobody asked for.
+  //
+  // A field the type does not declare is an error, not surplus.
+  map<string, string> fields = 3;
+}
+
+// Eip712Domain is EIP712Domain(name,version,chainId,verifyingContract) in the
+// four parts its separator is built from. chain_id is decimal for the same
+// reason the fields are.
+message Eip712Domain {
+  string name = 1;
+  string version = 2;
+  string chain_id = 3;
+  string verifying_contract = 4;
+}
+
+// HyperliquidAction is the structured form of an L1 action, so the vault can
+// apply policy to what is actually being signed instead of to an opaque hash.
+//
+// The vault does NOT re-encode this. action_msgpack is the CALLER'S OWN encoding
+// — the exact bytes it is about to hash — and the vault checks that those bytes
+// derive the domain_separator and typed_data_hash in this same request. That
+// makes the binding cryptographic rather than declarative: a caller cannot
+// describe one action and have another signed, because the description and the
+// signature pre-image are the same bytes.
+//
+// It also means no encoder agreement is needed. An earlier attempt required the
+// vault to reproduce the SDK's msgpack exactly — insertion-ordered map keys,
+// compact ints, str16-to-str8 rewriting — and stalled there. Nothing here
+// depends on that.
+message HyperliquidAction {
+  // action_msgpack is the caller's msgpack encoding of the action object.
+  bytes  action_msgpack = 1;
+  // nonce is appended big-endian when computing the action hash.
+  uint64 nonce = 2;
+  // vault_address is the sub-account this acts on behalf of, or empty.
+  string vault_address = 3;
+  // expires_after is optional; has_expires_after distinguishes "zero" from
+  // "absent", which produce different action hashes.
+  uint64 expires_after = 4;
+  bool   has_expires_after = 5;
+  // is_mainnet selects the phantom agent source tag. It does NOT change the
+  // domain: the L1 domain's chainId is 1337 on both networks.
+  bool   is_mainnet = 6;
+}
+
+message SetCodeRequest {
+  string request_id = 1;
+  string network    = 2;
+  bytes  chain_id   = 3;
+  bytes  address    = 4;
+  bytes  delegate   = 5;
+  uint64 nonce      = 6;
+}
+
+message RSVResponse {
+  bytes r = 1;
+  bytes s = 2;
+  int32 v = 3;
+}
+
+// Import is gone. Threshold custody has no trusted-dealer or resharing
+// primitive, so an externally-generated full key cannot be split into a t-of-n
+// sharing, and accepting one would put a whole private key inside a system whose
+// guarantee is that no node holds one. Clients still calling it receive
+// UNIMPLEMENTED from gRPC itself. Wallets are created via DKG with Create.
+service VaultService {
+  rpc Create(CreateRequest) returns (CreateResponse);
+  rpc SignByWallet(SignByWalletRequest) returns (SignByWalletResponse);
+  rpc SignByAddress(SignByAddressRequest) returns (SignByAddressResponse);
+  rpc TypedData(TypedDataRequest) returns (RSVResponse);
+  rpc SetCode(SetCodeRequest) returns (RSVResponse);
+}
