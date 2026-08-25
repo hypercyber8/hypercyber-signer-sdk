@@ -1,0 +1,42 @@
+{
+  "name": "@hypercyber/signer-client",
+  "version": "0.5.0",
+  "description": "TypeScript gRPC client for the HyperCyber vault signing service",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "proto"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hypercyber8/hypercyber-signer-sdk.git",
+    "directory": "client-ts"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --require ts-node/register --test test/*.test.ts",
+    "example": "ts-node examples/basic.ts",
+    "prepack": "tsc && node scripts/prepack.js",
+    "postpack": "node scripts/postpack.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.10",
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
