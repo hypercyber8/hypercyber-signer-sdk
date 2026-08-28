@@ -32,6 +32,15 @@ export interface WalletCreateResult {
   attested: boolean;
 }
 
+export interface Wallet {
+  walletId: string;
+  markup: string;
+  address: string;
+  groupPubkey: Uint8Array;
+  threshold: number;
+  allIds: number[];
+}
+
 export interface RSVResult {
   r: bigint;
   s: bigint;
@@ -187,6 +196,28 @@ export interface TypedDataWithMessageArgs extends TypedDataArgs {
   message: TypedDataMessage;
 }
 
+export interface CaliburCall {
+  to: string | Uint8Array;
+  value: bigint;
+  data: Uint8Array;
+}
+
+export interface CaliburSignedBatchedCall {
+  chainId: bigint;
+  wallet: string | Uint8Array;
+  implementation: string | Uint8Array;
+  calls: CaliburCall[];
+  revertOnFailure: boolean;
+  nonce: bigint;
+  keyHash: string | Uint8Array;
+  executor: string | Uint8Array;
+  deadline: bigint;
+}
+
+export interface TypedDataWithCaliburArgs extends TypedDataArgs {
+  calibur: CaliburSignedBatchedCall;
+}
+
 export interface SetCodeArgs {
   requestId: string;
   address: string | Uint8Array;
@@ -196,8 +227,9 @@ export interface SetCodeArgs {
   nonce: bigint | number;
 }
 
-function bigIntToBytes(n: bigint): Buffer {
-  if (n < 0n) throw new Error('chainId must be non-negative');
+function bigIntToBytes(n: bigint, what = 'chainId'): Buffer {
+	if (n < 0n) throw new Error(`${what} must be non-negative`);
+	if (n >= 1n << 256n) throw new Error(`${what} does not fit uint256`);
   if (n === 0n) return Buffer.alloc(0);
   let hex = n.toString(16);
   if (hex.length % 2) hex = '0' + hex;
@@ -220,6 +252,12 @@ function hexToBytes(hex: string): Buffer {
 function addressToBytes(addr: string | Uint8Array): Buffer {
   if (typeof addr === 'string') return hexToBytes(addr);
   return Buffer.from(addr);
+}
+
+function fixedBytesToWire(what: string, value: string | Uint8Array, length: number): Buffer {
+	const out = addressToBytes(value);
+	if (out.length !== length) throw new Error(`${what} must be ${length} bytes, got ${out.length}`);
+	return out;
 }
 
 /** proto uint64. A string keeps values above 2^53 exact; a number does not. */
@@ -301,8 +339,27 @@ function messageToWire(message: TypedDataMessage): Record<string, unknown> {
   };
 }
 
+function caliburToWire(call: CaliburSignedBatchedCall): Record<string, unknown> {
+  return {
+    chainId: bigIntToBytes(call.chainId, 'calibur.chainId'),
+    wallet: fixedBytesToWire('calibur.wallet', call.wallet, 20),
+    implementation: fixedBytesToWire('calibur.implementation', call.implementation, 20),
+    calls: call.calls.map((c) => ({
+      to: fixedBytesToWire('calibur.call.to', c.to, 20),
+      value: bigIntToBytes(c.value, 'calibur.call.value'),
+      data: Buffer.from(c.data),
+    })),
+    revertOnFailure: call.revertOnFailure,
+    nonce: bigIntToBytes(call.nonce, 'calibur.nonce'),
+    keyHash: fixedBytesToWire('calibur.keyHash', call.keyHash, 32),
+    executor: fixedBytesToWire('calibur.executor', call.executor, 20),
+    deadline: bigIntToBytes(call.deadline, 'calibur.deadline'),
+  };
+}
+
 interface VaultGrpcClient extends grpc.Client {
   Create(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
+  GetWallet(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   SignByAddress(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   SignByWallet(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   TypedData(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
@@ -443,6 +500,18 @@ export class VaultClient {
     return out;
   }
 
+  async getWallet(walletId: string): Promise<Wallet> {
+    const resp = await this.call<any>('GetWallet', { walletId });
+    return {
+      walletId: resp.walletId,
+      markup: resp.markup,
+      address: resp.address,
+      groupPubkey: new Uint8Array(resp.groupPubkey ?? []),
+      threshold: Number(resp.threshold ?? 0),
+      allIds: (resp.allIds ?? []).map(Number),
+    };
+  }
+
   async signByAddress(args: SignArgs): Promise<Uint8Array> {
     const resp = await this.call<any>('SignByAddress', {
       address: args.address,
@@ -477,7 +546,7 @@ export class VaultClient {
    * payload is available.
    */
   async typedData(args: TypedDataArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, undefined, undefined);
+    return this.sendTypedData(args, undefined, undefined, undefined);
   }
 
   /**
@@ -488,7 +557,7 @@ export class VaultClient {
    * because the vault checks that they derive the hashes in this same request.
    */
   async typedDataWithAction(args: TypedDataWithActionArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, actionToWire(args.action), undefined);
+    return this.sendTypedData(args, actionToWire(args.action), undefined, undefined);
   }
 
   /**
@@ -506,7 +575,11 @@ export class VaultClient {
    * and the request is refused.
    */
   async typedDataWithMessage(args: TypedDataWithMessageArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, undefined, messageToWire(args.message));
+    return this.sendTypedData(args, undefined, messageToWire(args.message), undefined);
+  }
+
+  async typedDataWithCalibur(args: TypedDataWithCaliburArgs): Promise<RSVResult> {
+    return this.sendTypedData(args, undefined, undefined, caliburToWire(args.calibur));
   }
 
   /**
@@ -519,6 +592,7 @@ export class VaultClient {
     args: TypedDataArgs,
     action: Record<string, unknown> | undefined,
     message: Record<string, unknown> | undefined,
+    calibur: Record<string, unknown> | undefined,
   ): Promise<RSVResult> {
     const resp = await this.call<any>('TypedData', {
       requestId: args.requestId,
@@ -529,6 +603,7 @@ export class VaultClient {
       typedDataHash: Buffer.from(args.typedDataHash),
       action,
       message,
+      calibur,
     });
     return {
       r: bytesToBigInt(resp.r),

@@ -41,6 +41,22 @@ message CreateResponse {
   repeated int32 all_ids = 6;
 }
 
+// GetWallet resolves the public identity of an existing threshold wallet. It
+// never returns key material. The same identity is returned by an idempotent
+// Create retry.
+message GetWalletRequest {
+  string wallet_id = 1;
+}
+
+message GetWalletResponse {
+  string wallet_id = 1;
+  string markup = 2;
+  string address = 3;
+  bytes group_pubkey = 4;
+  int32 threshold = 5;
+  repeated int32 all_ids = 6;
+}
+
 message SignByWalletRequest {
   string wallet_id   = 1;
   string request_id  = 2;
@@ -85,10 +101,10 @@ message TypedDataRequest {
   // than only sign it. Optional; see HyperliquidAction.
   HyperliquidAction action = 7;
   // message describes a NON-Hyperliquid EIP-712 payload the same way: a
-  // registered struct type over an explicit domain. At most one of action and
-  // message may be set — two descriptions of one digest cannot both be checked,
-  // and picking either would let a caller attach a benign description beside the
-  // real one.
+  // registered struct type over an explicit domain. At most one of action,
+  // message and calibur may be set — multiple descriptions of one digest cannot
+  // all be checked, and picking one would let a caller attach a benign
+  // description beside the real one.
   //
   // It exists because "describe what you are signing" cannot be a Hyperliquid-only
   // rule. A vault that enforced descriptions but could only describe one
@@ -96,6 +112,9 @@ message TypedDataRequest {
   // hole whatever it is called. EIP-3009 is the second family; the shape below is
   // general, so the third costs a type registration and no protocol change.
   Eip712Message message = 8;
+  // calibur is the dedicated, fully structured representation of a Calibur
+  // SignedBatchedCall. At most one of action, message and calibur may be set.
+  CaliburSignedBatchedCall calibur = 9;
 }
 
 // Eip712Message is a described EIP-712 struct: which registered type it is, the
@@ -131,6 +150,29 @@ message Eip712Domain {
   string version = 2;
   string chain_id = 3;
   string verifying_contract = 4;
+}
+
+// CaliburCall is one call nested in Calibur's BatchedCall. Bytes keep uint256
+// values lossless and bind calldata byte-for-byte to the derived digest.
+message CaliburCall {
+  bytes to = 1;
+  bytes value = 2;
+  bytes data = 3;
+}
+
+// CaliburSignedBatchedCall is the complete SignedBatchedCall description. The
+// vault derives Calibur's domain from chain_id, wallet and implementation,
+// including the implementation salt; no opaque domain assertion is accepted.
+message CaliburSignedBatchedCall {
+  bytes chain_id = 1;
+  bytes wallet = 2;
+  bytes implementation = 3;
+  repeated CaliburCall calls = 4;
+  bool revert_on_failure = 5;
+  bytes nonce = 6;
+  bytes key_hash = 7;
+  bytes executor = 8;
+  bytes deadline = 9;
 }
 
 // HyperliquidAction is the structured form of an L1 action, so the vault can
@@ -185,6 +227,7 @@ message RSVResponse {
 // UNIMPLEMENTED from gRPC itself. Wallets are created via DKG with Create.
 service VaultService {
   rpc Create(CreateRequest) returns (CreateResponse);
+  rpc GetWallet(GetWalletRequest) returns (GetWalletResponse);
   rpc SignByWallet(SignByWalletRequest) returns (SignByWalletResponse);
   rpc SignByAddress(SignByAddressRequest) returns (SignByAddressResponse);
   rpc TypedData(TypedDataRequest) returns (RSVResponse);

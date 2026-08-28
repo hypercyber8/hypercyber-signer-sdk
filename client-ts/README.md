@@ -144,6 +144,12 @@ const { r, s, v } = await c.typedDataWithMessage({
 re-encoding: the vault checks that those exact bytes derive the hashes in the
 same request, which is what makes the description binding rather than declared.
 
+Calibur's nested `SignedBatchedCall(BatchedCall(Call[]),...)` uses
+`typedDataWithCalibur`. Pass each call as `{to, value, data}` plus the wallet,
+implementation, nonce, key hash, executor and deadline. The SDK sends typed
+protobuf fields—not JSON—and the signer reconstructs the salted Calibur domain
+and every nested hash before applying its route policy.
+
 Notes:
 
 - **Every value in `fields` is a string.** A `uint256` has no lossless numeric

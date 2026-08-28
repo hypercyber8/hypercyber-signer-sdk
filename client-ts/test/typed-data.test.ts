@@ -38,6 +38,12 @@ const DOMAIN_SEPARATOR = '0x85944e1292d007732838d6eadfa67589b78ffcededbd4df60488
 
 const HOLDER = '0x8f426e67858a9febf31bb76e155d1949d6cfd23f';
 const DEST = '0x4d5fd9c32f92e1b0ba381b3d9ac5514c64e4080c';
+
+function wireHex(v: Uint8Array): string { return '0x' + Buffer.from(v).toString('hex'); }
+function wireBigInt(v: Uint8Array): bigint {
+  const h = Buffer.from(v).toString('hex');
+  return h ? BigInt('0x' + h) : 0n;
+}
 const AUTH_NONCE = '0x' + 'ab'.repeat(32);
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
@@ -262,6 +268,53 @@ describe('typedDataWithMessage()', () => {
     } finally {
       c.close();
     }
+  });
+});
+
+describe('typedDataWithCalibur()', () => {
+  const vault = new CapturingVault();
+  before(async () => { await vault.start(); });
+  after(() => { vault.stop(); });
+
+  it('sends every nested call and salted-domain input as typed protobuf fields', async () => {
+    const c = new VaultClient(`127.0.0.1:${vault.port}`, { insecure: true, protoPath });
+    try {
+      await c.typedDataWithCalibur({
+        requestId: 'calibur-1', address: HOLDER, network: 'ethereum', chainId: CHAIN_ID,
+        domainSeparator: Buffer.alloc(32, 1), typedDataHash: Buffer.alloc(32, 2),
+        calibur: {
+          chainId: CHAIN_ID, wallet: HOLDER,
+          implementation: '0x000000009B1D0aF20D8C6d0A44e162d11F9b8f00',
+          calls: [{ to: USDC, value: 123n, data: Buffer.from('095ea7b3', 'hex') }],
+          revertOnFailure: true, nonce: (1n << 200n) + 7n,
+          keyHash: '0x' + '00'.repeat(32), executor: '0x' + '00'.repeat(20), deadline: 1_800_000_000n,
+        },
+      });
+    } finally { c.close(); }
+    const req = vault.request;
+    assert.equal(wireBigInt(req.calibur.chainId), CHAIN_ID);
+    assert.equal(wireHex(req.calibur.wallet).toLowerCase(), HOLDER.toLowerCase());
+    assert.equal(req.calibur.calls.length, 1);
+    assert.equal(wireBigInt(req.calibur.calls[0].value), 123n);
+    assert.equal(wireHex(req.calibur.calls[0].data), '0x095ea7b3');
+    assert.ok(!req.action?.actionMsgpack?.length && !req.message?.primaryType);
+  });
+
+  it('rejects malformed fixed-width values before they reach gRPC', async () => {
+    const c = new VaultClient(`127.0.0.1:${vault.port}`, { insecure: true, protoPath });
+    try {
+      await assert.rejects(c.typedDataWithCalibur({
+        requestId: 'calibur-bad-key', address: HOLDER, network: 'ethereum', chainId: CHAIN_ID,
+        domainSeparator: Buffer.alloc(32, 1), typedDataHash: Buffer.alloc(32, 2),
+        calibur: {
+          chainId: CHAIN_ID, wallet: HOLDER,
+          implementation: '0x000000009B1D0aF20D8C6d0A44e162d11F9b8f00',
+          calls: [{ to: USDC, value: 1n, data: Buffer.alloc(0) }],
+          revertOnFailure: true, nonce: 1n, keyHash: '0x1234',
+          executor: '0x' + '00'.repeat(20), deadline: 1_800_000_000n,
+        },
+      }), /calibur\.keyHash must be 32 bytes/);
+    } finally { c.close(); }
   });
 });
 

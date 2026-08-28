@@ -33,6 +33,17 @@ type WalletCreateResult struct {
 	Attested bool
 }
 
+// Wallet describes the public identity and threshold topology of an existing
+// wallet. It contains no share or other secret material.
+type Wallet struct {
+	WalletID    string
+	Markup      string
+	Address     string
+	GroupPubKey []byte
+	Threshold   int
+	AllIDs      []int
+}
+
 // HyperliquidAction describes the L1 action a TypedData request is signing.
 //
 // Msgpack must be the bytes the Hyperliquid SDK itself produced —
@@ -77,6 +88,28 @@ type TypedDataMessage struct {
 	Fields            map[string]string
 }
 
+// CaliburCall is one call nested in a Calibur BatchedCall.
+type CaliburCall struct {
+	To    common.Address
+	Value *big.Int
+	Data  []byte
+}
+
+// CaliburSignedBatchedCall is the full typed payload accepted by Calibur's
+// relayed execute entrypoint. The signer derives the domain and every nested
+// type from these values; callers do not provide a type map or opaque JSON.
+type CaliburSignedBatchedCall struct {
+	ChainID         *big.Int
+	Wallet          common.Address
+	Implementation  common.Address
+	Calls           []CaliburCall
+	RevertOnFailure bool
+	Nonce           *big.Int
+	KeyHash         common.Hash
+	Executor        common.Address
+	Deadline        *big.Int
+}
+
 // RSVResult is returned by TypedData and SetCode.
 type RSVResult struct {
 	R *big.Int
@@ -88,6 +121,7 @@ type RSVResult struct {
 // threshold ECDSA; there is no custody model to select.
 type Client interface {
 	Create(ctx context.Context, markup, walletID string) (*WalletCreateResult, error)
+	GetWallet(ctx context.Context, walletID string) (*Wallet, error)
 	Sign(ctx context.Context, requestID, address, network string, chainID *big.Int, tx []byte) ([]byte, error)
 	SignByWallet(ctx context.Context, requestID, walletID, network string, chainID *big.Int, tx []byte) ([]byte, error)
 	TypedData(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte) (*RSVResult, error)
@@ -100,6 +134,10 @@ type Client interface {
 	// and fields are available: a vault node in enforce mode refuses a request it
 	// cannot check, and a bare TypedData is exactly that.
 	TypedDataWithMessage(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, msg *TypedDataMessage) (*RSVResult, error)
+	// TypedDataWithCalibur signs a fully described Calibur SignedBatchedCall.
+	// The signer reconstructs its salted domain and nested Call[] hash and refuses
+	// a description that does not match ds/tdh.
+	TypedDataWithCalibur(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, call *CaliburSignedBatchedCall) (*RSVResult, error)
 	SetCode(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, delegate common.Address, nonce uint64) (*RSVResult, error)
 	Close()
 }
@@ -280,6 +318,21 @@ func (c *client) Create(ctx context.Context, markup, walletID string) (*WalletCr
 	return out, nil
 }
 
+func (c *client) GetWallet(ctx context.Context, walletID string) (*Wallet, error) {
+	resp, err := c.rpc.GetWallet(ctx, &vaultv1.GetWalletRequest{WalletId: walletID})
+	if err != nil {
+		return nil, err
+	}
+	return &Wallet{
+		WalletID:    resp.WalletId,
+		Markup:      resp.Markup,
+		Address:     resp.Address,
+		GroupPubKey: append([]byte(nil), resp.GroupPubkey...),
+		Threshold:   int(resp.Threshold),
+		AllIDs:      int32sToInts(resp.AllIds),
+	}, nil
+}
+
 func int32sToInts(in []int32) []int {
 	out := make([]int, len(in))
 	for i, v := range in {
@@ -354,6 +407,41 @@ func (c *client) TypedDataWithMessage(ctx context.Context, requestID string, add
 		}
 	}
 	return c.typedData(ctx, requestID, address, network, chainID, ds, tdh, nil, wire)
+}
+
+func (c *client) TypedDataWithCalibur(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, call *CaliburSignedBatchedCall) (*RSVResult, error) {
+	var wire *vaultv1.CaliburSignedBatchedCall
+	if call != nil {
+		wire = &vaultv1.CaliburSignedBatchedCall{
+			ChainId:         chainIDToBytes(call.ChainID),
+			Wallet:          call.Wallet.Bytes(),
+			Implementation:  call.Implementation.Bytes(),
+			RevertOnFailure: call.RevertOnFailure,
+			Nonce:           chainIDToBytes(call.Nonce),
+			KeyHash:         call.KeyHash.Bytes(),
+			Executor:        call.Executor.Bytes(),
+			Deadline:        chainIDToBytes(call.Deadline),
+		}
+		wire.Calls = make([]*vaultv1.CaliburCall, len(call.Calls))
+		for i, c := range call.Calls {
+			wire.Calls[i] = &vaultv1.CaliburCall{
+				To: c.To.Bytes(), Value: chainIDToBytes(c.Value), Data: append([]byte(nil), c.Data...),
+			}
+		}
+	}
+	resp, err := c.rpc.TypedData(ctx, &vaultv1.TypedDataRequest{
+		RequestId:       requestID,
+		Network:         network,
+		ChainId:         chainIDToBytes(chainID),
+		Address:         address.Bytes(),
+		DomainSeparator: ds,
+		TypedDataHash:   tdh,
+		Calibur:         wire,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &RSVResult{R: new(big.Int).SetBytes(resp.R), S: new(big.Int).SetBytes(resp.S), V: int(resp.V)}, nil
 }
 
 func (c *client) typedData(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *vaultv1.HyperliquidAction, msg *vaultv1.Eip712Message) (*RSVResult, error) {
