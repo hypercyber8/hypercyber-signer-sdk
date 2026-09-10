@@ -94,72 +94,8 @@ message TypedDataRequest {
   // action describes WHAT is being signed, so the server can authorize it rather
   // than only sign it. Optional; see HyperliquidAction.
   HyperliquidAction action = 7;
-  // message describes a NON-Hyperliquid EIP-712 payload the same way: a
-  // registered struct type over an explicit domain. At most one of action,
-  // message and calibur may be set — multiple descriptions of one digest cannot
-  // all be checked, and picking one would let a caller attach a benign
-  // description beside the real one.
-  //
-  // It exists because "describe what you are signing" cannot be a Hyperliquid-only
-  // rule. A vault that enforced descriptions but could only describe one
-  // application would have to exempt every other payload, and an exemption is a
-  // hole whatever it is called. EIP-3009 is the second family; the shape below is
-  // general, so the third costs a type registration and no protocol change.
-  Eip712Message message = 8;
-  CaliburSignedBatchedCall calibur = 9;
-}
-
-// Eip712Message is a described EIP-712 struct: which registered type it is, the
-// domain PARTS, and the value of every field that type signs over.
-//
-// The domain travels in PARTS and never as a separator, and that is the whole
-// point rather than a detail. A caller that hands over 32 bytes has ASSERTED a
-// domain; a caller that hands over name, version, chainId and verifyingContract
-// has stated one the vault rebuilds and checks against the separator being
-// signed. So verifyingContract — which for a token authorization IS the token —
-// becomes a verified field instead of a claim, and a policy over it is a policy
-// over something real.
-message Eip712Message {
-  // primary_type is the registered struct, e.g. "TransferWithAuthorization".
-  // A type this build cannot describe is REFUSED, never passed through: a
-  // payload the vault cannot check is one it must not vouch for.
-  string primary_type = 1;
-  Eip712Domain domain = 2;
-  // fields holds every field of primary_type, keyed by name: an address or a
-  // bytes32 as 0x-prefixed hex, an integer as a DECIMAL STRING. Strings because
-  // a uint256 has no lossless numeric representation here, and a rounded amount
-  // would authorize a transfer nobody asked for.
-  //
-  // A field the type does not declare is an error, not surplus.
-  map<string, string> fields = 3;
-}
-
-// Eip712Domain is EIP712Domain(name,version,chainId,verifyingContract) in the
-// four parts its separator is built from. chain_id is decimal for the same
-// reason the fields are.
-message Eip712Domain {
-  string name = 1;
-  string version = 2;
-  string chain_id = 3;
-  string verifying_contract = 4;
-}
-
-message CaliburCall {
-  bytes to = 1;
-  bytes value = 2;
-  bytes data = 3;
-}
-
-message CaliburSignedBatchedCall {
-  bytes chain_id = 1;
-  bytes wallet = 2;
-  bytes implementation = 3;
-  repeated CaliburCall calls = 4;
-  bool revert_on_failure = 5;
-  bytes nonce = 6;
-  bytes key_hash = 7;
-  bytes executor = 8;
-  bytes deadline = 9;
+  reserved 8, 9;
+  reserved "message", "calibur";
 }
 
 // HyperliquidAction is the structured form of an L1 action, so the vault can
@@ -192,15 +128,6 @@ message HyperliquidAction {
   bool   is_mainnet = 6;
 }
 
-message SetCodeRequest {
-  string request_id = 1;
-  string network    = 2;
-  bytes  chain_id   = 3;
-  bytes  address    = 4;
-  bytes  delegate   = 5;
-  uint64 nonce      = 6;
-}
-
 message RSVResponse {
   bytes r = 1;
   bytes s = 2;
@@ -218,5 +145,4 @@ service VaultService {
   rpc SignByWallet(SignByWalletRequest) returns (SignByWalletResponse);
   rpc SignByAddress(SignByAddressRequest) returns (SignByAddressResponse);
   rpc TypedData(TypedDataRequest) returns (RSVResponse);
-  rpc SetCode(SetCodeRequest) returns (RSVResponse);
 }

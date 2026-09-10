@@ -8,13 +8,7 @@ export {
   type SignByWalletArgs,
   type TypedDataArgs,
   type TypedDataWithActionArgs,
-  type TypedDataWithMessageArgs,
-  type TypedDataWithCaliburArgs,
-  type CaliburCall,
-  type CaliburSignedBatchedCall,
   type HyperliquidAction,
-  type TypedDataMessage,
-  type SetCodeArgs,
 } from './client';
 
 export {

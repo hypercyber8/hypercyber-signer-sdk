@@ -97,71 +97,13 @@ callers that persist attestations and re-check them later.
 
 ### Describing what you are signing
 
-`typedData` hands the vault two keccak outputs. At that layer a limit order, a
-bridge withdrawal and a gasless USDC transfer are indistinguishable, so every
-application-level risk gate lives in the caller and a compromised caller bypasses
-all of them. A vault credential in **enforce** mode refuses a request it cannot
-check, and a bare `typedData` is exactly that.
-
-`typedDataWithMessage` sends the payload's type, the domain's **parts** and every
-field the type signs, alongside the hashes:
-
-```ts
-const { r, s, v } = await c.typedDataWithMessage({
-  requestId: 'req-002',
-  address: holder,
-  network: 'ethereum',
-  chainId: 421614n,
-  domainSeparator,        // still sent — the vault checks its own rebuild against it
-  typedDataHash,
-  message: {
-    primaryType: 'TransferWithAuthorization',
-    // The domain travels in PARTS, never as a separator. The vault rebuilds the
-    // separator from these four and refuses the request unless it matches the
-    // one above — which is what turns `verifyingContract` from a claim into a
-    // verified fact, and lets an operator bound WHICH TOKEN gets authorized.
-    name: 'USD Coin',
-    version: '2',
-    chainId: 421614n,
-    verifyingContract: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-    // Exactly the fields the type signs — no more, no fewer. A surplus or a
-    // missing one is refused rather than ignored, because you would otherwise
-    // believe you had bound something the signature does not cover.
-    fields: {
-      from: holder,
-      to: recipient,
-      value: '1000000',          // DECIMAL string, never a number
-      validAfter: '0',
-      validBefore: '1785200000',
-      nonce: '0xab…',            // bytes32 as 0x-prefixed hex
-    },
-  },
-});
-```
-
 `typedDataWithAction` does the same for a Hyperliquid L1 action. Its
 `actionMsgpack` must be the bytes the Hyperliquid SDK itself produced, not a
 re-encoding: the vault checks that those exact bytes derive the hashes in the
 same request, which is what makes the description binding rather than declared.
 
-Calibur's nested `SignedBatchedCall(BatchedCall(Call[]),...)` uses
-`typedDataWithCalibur`. Pass each call as `{to, value, data}` plus the wallet,
-implementation, nonce, key hash, executor and deadline. The SDK sends typed
-protobuf fields—not JSON—and the signer reconstructs the salted Calibur domain
-and every nested hash before applying its route policy.
-
 Notes:
 
-- **Every value in `fields` is a string.** A `uint256` has no lossless numeric
-  representation in JS, and a rounded amount authorizes a transfer nobody asked
-  for. Passing a number throws here rather than reaching the vault.
-- **`chainId` inside `message` is sent as a decimal string**, unlike the
-  top-level `chainId`, which is routing metadata encoded as bytes.
-- A type this vault build cannot describe is **refused**, never passed through.
-  Teaching it a new payload is a change to the vault, not to this client.
-- At most one of `action` and `message` is ever sent. Two descriptions of one
-  digest cannot both be checked, and attaching a benign one beside the real one
-  is the attack the check exists to stop.
 
 ## API
 
@@ -171,9 +113,7 @@ Notes:
 | `signByAddress({ requestId, address, network, chainId, transaction })` | Sign by address → `Uint8Array` |
 | `signByWallet({ requestId, walletId, network, chainId, transaction })` | Sign by wallet ID → `Uint8Array` |
 | `typedData({ requestId, address, network, chainId, domainSeparator, typedDataHash })` | Sign EIP-712 from hashes alone → `{ r, s, v }`. Describes nothing; refused by a credential in enforce mode |
-| `typedDataWithMessage({ …typedData, message })` | Sign EIP-712 **with** the type, domain parts and signed fields → `{ r, s, v }` |
 | `typedDataWithAction({ …typedData, action })` | Sign EIP-712 **with** the Hyperliquid L1 action → `{ r, s, v }` |
-| `setCode({ requestId, address, network, chainId, delegate, nonce })` | Sign EIP-7702 SetCode → `{ r, s, v }` |
 | `close()` | Close the gRPC channel |
 
 ### Type conventions
@@ -181,19 +121,22 @@ Notes:
 | Field | TypeScript type | Notes |
 |-------|----------------|-------|
 | `chainId` | `bigint` | Encoded as big-endian bytes on the wire |
-| `address`, `delegate` | `string \| Uint8Array` | Hex string (with or without `0x`) or raw 20 bytes |
+| `address` | `string \| Uint8Array` | Hex string (with or without `0x`) or raw 20 bytes |
 | `r`, `s` (response) | `bigint` | Big-endian bytes parsed back to `bigint` |
 | `v` (response) | `number` | Recovery ID (27 or 28) |
 | `transaction`, `domainSeparator`, `typedDataHash` | `Uint8Array` | Raw bytes |
-| `message.chainId` | `bigint` | Sent as a **decimal string** — it is a domain part the vault rebuilds with, not routing metadata |
-| `message.fields` values | `string` | Address / bytes32 as `0x` hex, integers as **decimal** |
 | `action.nonce`, `action.expiresAfter` | `bigint \| number` | proto `uint64`, sent as a decimal string so values above 2^53 stay exact |
+
+## Migrating from 0.5.x
+
+0.6.0 removes the retired Paymaster-only typed message, Calibur batch, and
+EIP-7702 SetCode methods. Hyperliquid callers continue to use
+`typedDataWithAction`; transaction and wallet APIs are unchanged.
 
 ## Migrating from 0.4.x
 
-0.5.0 is additive. `typedData` is unchanged, and every existing call keeps
-working. It adds `typedDataWithMessage` and `typedDataWithAction`, which are what
-a vault credential in `enforce` mode requires — see
+0.5.0 adds `typedDataWithAction`, which is what a Hyperliquid vault credential
+in `enforce` mode requires — see
 [Describing what you are signing](#describing-what-you-are-signing).
 
 ## Migrating from 0.3.x

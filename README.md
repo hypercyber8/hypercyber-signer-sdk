@@ -28,9 +28,7 @@ import vaultclient "github.com/hypercyber8/hypercyber-signer-sdk/client"
 ```
 
 `Create` is idempotent for the same `(walletID, markup)`. Use `GetWallet` to
-resolve an existing wallet's public identity. Calibur bridge intents must use
-`TypedDataWithCalibur`; the dedicated nested `Call[]` type lets signer nodes
-rebuild and policy-check the complete batch instead of accepting opaque JSON.
+resolve an existing wallet's public identity.
 
 ```bash
 go test ./...
