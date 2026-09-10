@@ -61,56 +61,7 @@ type HyperliquidAction struct {
 	IsMainnet    bool
 }
 
-// TypedDataMessage describes a NON-Hyperliquid EIP-712 payload — an EIP-3009
-// TransferWithAuthorization, for instance — so the vault can authorize what is
-// being signed rather than only sign its hash.
-//
-// The DOMAIN travels in parts, never as a separator, and that is the point
-// rather than a formality: the vault rebuilds the separator from Name, Version,
-// ChainID and VerifyingContract and checks it against the one the request signs
-// under. So a caller cannot name one token and have another's authorization
-// signed, and the vault's node-side policy over the token, the recipient and the
-// amount applies to values it established rather than values it was handed.
-//
-// Fields must be exactly the fields the type signs, each as a string: an address
-// or a bytes32 as 0x-prefixed hex, an integer as DECIMAL. A missing field or a
-// surplus one is refused rather than ignored — the caller would otherwise
-// believe it had bound something the signature does not cover.
-type TypedDataMessage struct {
-	// PrimaryType is the registered EIP-712 struct, e.g.
-	// "TransferWithAuthorization". A type the vault cannot describe is refused;
-	// teaching it a new one is a change to the vault, not to this struct.
-	PrimaryType       string
-	Name              string
-	Version           string
-	ChainID           *big.Int
-	VerifyingContract common.Address
-	Fields            map[string]string
-}
-
-// CaliburCall is one call nested in a Calibur BatchedCall.
-type CaliburCall struct {
-	To    common.Address
-	Value *big.Int
-	Data  []byte
-}
-
-// CaliburSignedBatchedCall is the full typed payload accepted by Calibur's
-// relayed execute entrypoint. The signer derives the domain and every nested
-// type from these values; callers do not provide a type map or opaque JSON.
-type CaliburSignedBatchedCall struct {
-	ChainID         *big.Int
-	Wallet          common.Address
-	Implementation  common.Address
-	Calls           []CaliburCall
-	RevertOnFailure bool
-	Nonce           *big.Int
-	KeyHash         common.Hash
-	Executor        common.Address
-	Deadline        *big.Int
-}
-
-// RSVResult is returned by TypedData and SetCode.
+// RSVResult is returned by TypedData.
 type RSVResult struct {
 	R *big.Int
 	S *big.Int
@@ -129,16 +80,6 @@ type Client interface {
 	// signed, so the vault can authorize the action rather than only sign its
 	// hash. Prefer it wherever the action is available; see HyperliquidAction.
 	TypedDataWithAction(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *HyperliquidAction) (*RSVResult, error)
-	// TypedDataWithMessage is TypedData plus a description of a non-Hyperliquid
-	// EIP-712 payload. Prefer it over bare TypedData wherever the payload's type
-	// and fields are available: a vault node in enforce mode refuses a request it
-	// cannot check, and a bare TypedData is exactly that.
-	TypedDataWithMessage(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, msg *TypedDataMessage) (*RSVResult, error)
-	// TypedDataWithCalibur signs a fully described Calibur SignedBatchedCall.
-	// The signer reconstructs its salted domain and nested Call[] hash and refuses
-	// a description that does not match ds/tdh.
-	TypedDataWithCalibur(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, call *CaliburSignedBatchedCall) (*RSVResult, error)
-	SetCode(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, delegate common.Address, nonce uint64) (*RSVResult, error)
 	Close()
 }
 
@@ -387,64 +328,10 @@ func (c *client) TypedDataWithAction(ctx context.Context, requestID string, addr
 			wire.HasExpiresAfter = true
 		}
 	}
-	return c.typedData(ctx, requestID, address, network, chainID, ds, tdh, wire, nil)
+	return c.typedData(ctx, requestID, address, network, chainID, ds, tdh, wire)
 }
 
-func (c *client) TypedDataWithMessage(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, msg *TypedDataMessage) (*RSVResult, error) {
-	var wire *vaultv1.Eip712Message
-	if msg != nil {
-		wire = &vaultv1.Eip712Message{
-			PrimaryType: msg.PrimaryType,
-			Domain: &vaultv1.Eip712Domain{
-				Name:              msg.Name,
-				Version:           msg.Version,
-				VerifyingContract: msg.VerifyingContract.Hex(),
-			},
-			Fields: msg.Fields,
-		}
-		if msg.ChainID != nil {
-			wire.Domain.ChainId = msg.ChainID.String()
-		}
-	}
-	return c.typedData(ctx, requestID, address, network, chainID, ds, tdh, nil, wire)
-}
-
-func (c *client) TypedDataWithCalibur(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, call *CaliburSignedBatchedCall) (*RSVResult, error) {
-	var wire *vaultv1.CaliburSignedBatchedCall
-	if call != nil {
-		wire = &vaultv1.CaliburSignedBatchedCall{
-			ChainId:         chainIDToBytes(call.ChainID),
-			Wallet:          call.Wallet.Bytes(),
-			Implementation:  call.Implementation.Bytes(),
-			RevertOnFailure: call.RevertOnFailure,
-			Nonce:           chainIDToBytes(call.Nonce),
-			KeyHash:         call.KeyHash.Bytes(),
-			Executor:        call.Executor.Bytes(),
-			Deadline:        chainIDToBytes(call.Deadline),
-		}
-		wire.Calls = make([]*vaultv1.CaliburCall, len(call.Calls))
-		for i, c := range call.Calls {
-			wire.Calls[i] = &vaultv1.CaliburCall{
-				To: c.To.Bytes(), Value: chainIDToBytes(c.Value), Data: append([]byte(nil), c.Data...),
-			}
-		}
-	}
-	resp, err := c.rpc.TypedData(ctx, &vaultv1.TypedDataRequest{
-		RequestId:       requestID,
-		Network:         network,
-		ChainId:         chainIDToBytes(chainID),
-		Address:         address.Bytes(),
-		DomainSeparator: ds,
-		TypedDataHash:   tdh,
-		Calibur:         wire,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &RSVResult{R: new(big.Int).SetBytes(resp.R), S: new(big.Int).SetBytes(resp.S), V: int(resp.V)}, nil
-}
-
-func (c *client) typedData(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *vaultv1.HyperliquidAction, msg *vaultv1.Eip712Message) (*RSVResult, error) {
+func (c *client) typedData(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *vaultv1.HyperliquidAction) (*RSVResult, error) {
 	resp, err := c.rpc.TypedData(ctx, &vaultv1.TypedDataRequest{
 		RequestId:       requestID,
 		Network:         network,
@@ -453,26 +340,6 @@ func (c *client) typedData(ctx context.Context, requestID string, address common
 		DomainSeparator: ds,
 		TypedDataHash:   tdh,
 		Action:          action,
-		Message:         msg,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &RSVResult{
-		R: new(big.Int).SetBytes(resp.R),
-		S: new(big.Int).SetBytes(resp.S),
-		V: int(resp.V),
-	}, nil
-}
-
-func (c *client) SetCode(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, delegate common.Address, nonce uint64) (*RSVResult, error) {
-	resp, err := c.rpc.SetCode(ctx, &vaultv1.SetCodeRequest{
-		RequestId: requestID,
-		Network:   network,
-		ChainId:   chainIDToBytes(chainID),
-		Address:   address.Bytes(),
-		Delegate:  delegate.Bytes(),
-		Nonce:     nonce,
 	})
 	if err != nil {
 		return nil, err

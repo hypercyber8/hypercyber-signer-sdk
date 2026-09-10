@@ -142,89 +142,8 @@ export interface HyperliquidAction {
   isMainnet: boolean;
 }
 
-/**
- * A NON-Hyperliquid EIP-712 payload — an EIP-3009 `TransferWithAuthorization`,
- * for instance — described well enough that the vault can authorize what is
- * being signed instead of only signing its hash.
- *
- * The DOMAIN travels in PARTS, never as a separator, and that is the point
- * rather than a formality: the vault REBUILDS the separator from `name`,
- * `version`, `chainId` and `verifyingContract` and checks it against the one the
- * request signs under. So a caller cannot name one token and have another's
- * authorization signed, and the vault's node-side policy over the token, the
- * recipient and the amount applies to values it established rather than values
- * it was handed.
- *
- * `fields` must be exactly the fields the type signs, each as a STRING: an
- * address or a bytes32 as 0x-prefixed hex, an integer as DECIMAL. A missing
- * field or a surplus one is refused rather than ignored — the caller would
- * otherwise believe it had bound something the signature does not cover.
- */
-export interface TypedDataMessage {
-  /**
-   * The registered EIP-712 struct, e.g. `"TransferWithAuthorization"`. A type
-   * the vault cannot describe is refused; teaching it a new one is a change to
-   * the vault, not to this interface.
-   */
-  primaryType: string;
-  /** The EIP712Domain's `name`, e.g. `"USD Coin"`. */
-  name: string;
-  /** The EIP712Domain's `version`, e.g. `"2"`. A string, never an integer. */
-  version: string;
-  /** The EIP712Domain's `chainId`. Sent as a decimal string, not as bytes. */
-  chainId: bigint;
-  /**
-   * The EIP712Domain's `verifyingContract` — for a token authorization, the
-   * token itself. This is the field the vault turns from a claim into a verified
-   * fact by rebuilding the separator around it.
-   */
-  verifyingContract: string;
-  /**
-   * Every field `primaryType` signs over, keyed by name, each as a string.
-   *
-   * Strings because a uint256 has no lossless numeric representation here, and a
-   * rounded amount would authorize a transfer nobody asked for.
-   */
-  fields: Record<string, string>;
-}
-
 export interface TypedDataWithActionArgs extends TypedDataArgs {
   action: HyperliquidAction;
-}
-
-export interface TypedDataWithMessageArgs extends TypedDataArgs {
-  message: TypedDataMessage;
-}
-
-export interface CaliburCall {
-  to: string | Uint8Array;
-  value: bigint;
-  data: Uint8Array;
-}
-
-export interface CaliburSignedBatchedCall {
-  chainId: bigint;
-  wallet: string | Uint8Array;
-  implementation: string | Uint8Array;
-  calls: CaliburCall[];
-  revertOnFailure: boolean;
-  nonce: bigint;
-  keyHash: string | Uint8Array;
-  executor: string | Uint8Array;
-  deadline: bigint;
-}
-
-export interface TypedDataWithCaliburArgs extends TypedDataArgs {
-  calibur: CaliburSignedBatchedCall;
-}
-
-export interface SetCodeArgs {
-  requestId: string;
-  address: string | Uint8Array;
-  network: string;
-  chainId: bigint;
-  delegate: string | Uint8Array;
-  nonce: bigint | number;
 }
 
 function bigIntToBytes(n: bigint, what = 'chainId'): Buffer {
@@ -254,45 +173,11 @@ function addressToBytes(addr: string | Uint8Array): Buffer {
   return Buffer.from(addr);
 }
 
-function fixedBytesToWire(what: string, value: string | Uint8Array, length: number): Buffer {
-	const out = addressToBytes(value);
-	if (out.length !== length) throw new Error(`${what} must be ${length} bytes, got ${out.length}`);
-	return out;
-}
-
 /** proto uint64. A string keeps values above 2^53 exact; a number does not. */
 function uint64ToWire(n: bigint | number): string {
   const v = typeof n === 'number' ? BigInt(n) : n;
   if (v < 0n || v >= 1n << 64n) throw new Error(`value ${v} does not fit a uint64`);
   return v.toString(10);
-}
-
-const HEX_ADDRESS = /^(0x|0X)?[0-9a-fA-F]{40}$/;
-
-/**
- * Checks and normalizes a described domain's `verifyingContract`.
- *
- * The vault parses this case-insensitively, so normalizing is about the caller
- * rather than the wire — but CHECKING it here is not cosmetic. A vault whose
- * credential is not yet in enforce mode logs a description it cannot read and
- * signs anyway, so a malformed address would produce a working signature and a
- * silently unverified vault, and the mistake would surface the day enforcement
- * is turned on rather than the day it is made.
- */
-function domainAddressToWire(what: string, addr: string): string {
-  if (typeof addr !== 'string' || !HEX_ADDRESS.test(addr.trim())) {
-    throw new Error(`${what} must be a 20-byte hex address, got ${JSON.stringify(addr)}`);
-  }
-  const s = addr.trim();
-  return '0x' + (s.startsWith('0x') || s.startsWith('0X') ? s.slice(2) : s);
-}
-
-/** proto string holding a uint256. Decimal, for the reason `fields` are strings. */
-function uint256ToWire(what: string, n: bigint): string {
-  if (typeof n !== 'bigint') throw new Error(`${what} must be a bigint, got ${typeof n}`);
-  if (n < 0n) throw new Error(`${what} must be non-negative, got ${n}`);
-  if (n >= 1n << 256n) throw new Error(`${what} does not fit a uint256`);
-  return n.toString(10);
 }
 
 function actionToWire(action: HyperliquidAction): Record<string, unknown> {
@@ -311,59 +196,12 @@ function actionToWire(action: HyperliquidAction): Record<string, unknown> {
   return out;
 }
 
-function messageToWire(message: TypedDataMessage): Record<string, unknown> {
-  if (!message.primaryType) {
-    throw new Error('typed-data message has no primaryType, so the vault cannot know which type it signs');
-  }
-  const fields: Record<string, string> = {};
-  for (const [name, value] of Object.entries(message.fields ?? {})) {
-    if (typeof value !== 'string') {
-      throw new Error(
-        `typed-data message field ${JSON.stringify(name)} is a ${typeof value}; ` +
-          'every field must be a string — an address or a bytes32 as 0x-prefixed hex, ' +
-          'an integer as a DECIMAL string. A number would lose precision above 2^53 and ' +
-          'authorize a value nobody sent.',
-      );
-    }
-    fields[name] = value;
-  }
-  return {
-    primaryType: message.primaryType,
-    domain: {
-      name: message.name,
-      version: message.version,
-      chainId: uint256ToWire('typed-data domain chainId', message.chainId),
-      verifyingContract: domainAddressToWire('typed-data domain verifyingContract', message.verifyingContract),
-    },
-    fields,
-  };
-}
-
-function caliburToWire(call: CaliburSignedBatchedCall): Record<string, unknown> {
-  return {
-    chainId: bigIntToBytes(call.chainId, 'calibur.chainId'),
-    wallet: fixedBytesToWire('calibur.wallet', call.wallet, 20),
-    implementation: fixedBytesToWire('calibur.implementation', call.implementation, 20),
-    calls: call.calls.map((c) => ({
-      to: fixedBytesToWire('calibur.call.to', c.to, 20),
-      value: bigIntToBytes(c.value, 'calibur.call.value'),
-      data: Buffer.from(c.data),
-    })),
-    revertOnFailure: call.revertOnFailure,
-    nonce: bigIntToBytes(call.nonce, 'calibur.nonce'),
-    keyHash: fixedBytesToWire('calibur.keyHash', call.keyHash, 32),
-    executor: fixedBytesToWire('calibur.executor', call.executor, 20),
-    deadline: bigIntToBytes(call.deadline, 'calibur.deadline'),
-  };
-}
-
 interface VaultGrpcClient extends grpc.Client {
   Create(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   GetWallet(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   SignByAddress(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   SignByWallet(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   TypedData(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
-  SetCode(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
 }
 
 function loadService(protoPath: string): grpc.ServiceClientConstructor {
@@ -538,15 +376,13 @@ export class VaultClient {
    * Signs `keccak(0x19 || 0x01 || domainSeparator || typedDataHash)` and returns
    * the split signature.
    *
-   * This describes NOTHING about what is being signed: at this layer a limit
-   * order, a bridge withdrawal and a gasless USDC transfer are two keccak
-   * outputs and nothing else. A vault credential in enforce mode refuses a
-   * request it cannot check, and a bare typedData is exactly that — so prefer
-   * {@link typedDataWithMessage} or {@link typedDataWithAction} wherever the
-   * payload is available.
+   * This describes nothing about what is being signed: at this layer a limit
+   * order and a value-transfer action are both just keccak outputs. A vault
+   * credential in enforce mode refuses a request it cannot check, so prefer
+   * {@link typedDataWithAction} when the Hyperliquid payload is available.
    */
   async typedData(args: TypedDataArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, undefined, undefined, undefined);
+    return this.sendTypedData(args, undefined);
   }
 
   /**
@@ -557,42 +393,12 @@ export class VaultClient {
    * because the vault checks that they derive the hashes in this same request.
    */
   async typedDataWithAction(args: TypedDataWithActionArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, actionToWire(args.action), undefined, undefined);
+    return this.sendTypedData(args, actionToWire(args.action));
   }
 
-  /**
-   * `typedData` plus a description of a non-Hyperliquid EIP-712 payload — the
-   * registered struct type, the domain's PARTS, and every field the type signs.
-   *
-   * The vault rebuilds the domain separator and the typed-data hash from this
-   * description and refuses the request if they are not the ones being signed.
-   * So the description is not a label the vault takes on trust: past that check
-   * it provably IS what gets signed, which is what lets an operator bound which
-   * token, which recipient and how much.
-   *
-   * See {@link TypedDataMessage} for the string encodings, which are not
-   * negotiable — a domain encoded differently rebuilds to a different separator
-   * and the request is refused.
-   */
-  async typedDataWithMessage(args: TypedDataWithMessageArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, undefined, messageToWire(args.message), undefined);
-  }
-
-  async typedDataWithCalibur(args: TypedDataWithCaliburArgs): Promise<RSVResult> {
-    return this.sendTypedData(args, undefined, undefined, caliburToWire(args.calibur));
-  }
-
-  /**
-   * At most one of `action` and `message` is ever set. Two descriptions of one
-   * digest cannot both be checked, and the vault refuses a request carrying
-   * both rather than picking one — picking either would let a caller attach a
-   * benign description beside the real one.
-   */
   private async sendTypedData(
     args: TypedDataArgs,
     action: Record<string, unknown> | undefined,
-    message: Record<string, unknown> | undefined,
-    calibur: Record<string, unknown> | undefined,
   ): Promise<RSVResult> {
     const resp = await this.call<any>('TypedData', {
       requestId: args.requestId,
@@ -602,24 +408,6 @@ export class VaultClient {
       domainSeparator: Buffer.from(args.domainSeparator),
       typedDataHash: Buffer.from(args.typedDataHash),
       action,
-      message,
-      calibur,
-    });
-    return {
-      r: bytesToBigInt(resp.r),
-      s: bytesToBigInt(resp.s),
-      v: resp.v,
-    };
-  }
-
-  async setCode(args: SetCodeArgs): Promise<RSVResult> {
-    const resp = await this.call<any>('SetCode', {
-      requestId: args.requestId,
-      network: args.network,
-      chainId: bigIntToBytes(args.chainId),
-      address: addressToBytes(args.address),
-      delegate: addressToBytes(args.delegate),
-      nonce: typeof args.nonce === 'number' ? args.nonce : args.nonce.toString(),
     });
     return {
       r: bytesToBigInt(resp.r),

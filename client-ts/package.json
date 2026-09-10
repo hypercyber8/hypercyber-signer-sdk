@@ -1,6 +1,6 @@
 {
   "name": "@hypercyber/signer-client",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "TypeScript gRPC client for the HyperCyber vault signing service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
