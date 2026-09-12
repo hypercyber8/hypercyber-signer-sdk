@@ -150,19 +150,10 @@ message RSVResponse {
 // guarantee is that no node holds one. Clients still calling it receive
 // UNIMPLEMENTED from gRPC itself. Wallets are created via DKG with Create.
 service VaultService {
-  rpc BindWalletOwner(BindWalletOwnerRequest) returns (GetWalletResponse);
   rpc Create(CreateRequest) returns (CreateResponse);
   rpc GetWallet(GetWalletRequest) returns (GetWalletResponse);
   rpc SignByWallet(SignByWalletRequest) returns (SignByWalletResponse);
   rpc SignByAddress(SignByAddressRequest) returns (SignByAddressResponse);
   rpc TypedData(TypedDataRequest) returns (RSVResponse);
   rpc TypedDataByWallet(TypedDataByWalletRequest) returns (RSVResponse);
-}
-
-message BindWalletOwnerRequest {
-  string wallet_id = 1;
-  string address = 2;
-  string owner_address = 3;
-  string network = 4;
-  bytes authority_signature = 5;
 }
