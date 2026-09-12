@@ -2,6 +2,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as tls from 'tls';
 
 import { type Attestation, type NodeKey, validateNodeKeys, verifyAttestations } from './attest';
 
@@ -54,6 +55,10 @@ export interface ClientOptions {
   insecure?: boolean;
   /** Path to a CA certificate file (PEM) for self-signed servers. */
   caCertFile?: string;
+  /** Client certificate (PEM) presented to the vault for mutual TLS. */
+  clientCertFile?: string;
+  /** Private key for clientCertFile. Configure the pair together. */
+  clientKeyFile?: string;
   /** Override the bundled vault.proto path (rarely needed). */
   protoPath?: string;
   /**
@@ -251,13 +256,30 @@ export class VaultClient {
     }
     this.attestationThreshold = Math.max(2, opts.attestationThreshold ?? 2);
 
+    if ((opts.clientCertFile === undefined) !== (opts.clientKeyFile === undefined)) {
+      throw new Error('VaultClient: clientCertFile and clientKeyFile must be configured together');
+    }
+    if (opts.insecure && opts.clientCertFile) {
+      throw new Error('VaultClient: a client certificate cannot be used with insecure transport');
+    }
+    if (opts.clientCertFile && !opts.secret) {
+      throw new Error('VaultClient: mutual TLS also requires secret as the second authentication factor');
+    }
+
     let creds: grpc.ChannelCredentials;
     if (opts.insecure) {
       creds = grpc.credentials.createInsecure();
-    } else if (opts.caCertFile) {
-      creds = grpc.credentials.createSsl(fs.readFileSync(opts.caCertFile));
     } else {
-      creds = grpc.credentials.createSsl();
+      const rootCert = opts.caCertFile ? fs.readFileSync(opts.caCertFile) : undefined;
+      const privateKey = opts.clientKeyFile ? fs.readFileSync(opts.clientKeyFile) : undefined;
+      const certChain = opts.clientCertFile ? fs.readFileSync(opts.clientCertFile) : undefined;
+      const secureContext = tls.createSecureContext({
+        ca: rootCert,
+        key: privateKey,
+        cert: certChain,
+        minVersion: 'TLSv1.3',
+      });
+      creds = grpc.credentials.createFromSecureContext(secureContext);
     }
 
     this.grpcClient = new ServiceCtor(endpoint, creds) as unknown as VaultGrpcClient;

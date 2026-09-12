@@ -161,6 +161,40 @@ describe('create()', () => {
 });
 
 describe('client construction', () => {
+  it('requires client certificate and key together', () => {
+    assert.throws(
+      () => new VaultClient('127.0.0.1:1', { protoPath, clientCertFile: 'client.crt' }),
+      /must be configured together/,
+    );
+    assert.throws(
+      () => new VaultClient('127.0.0.1:1', { protoPath, clientKeyFile: 'client.key' }),
+      /must be configured together/,
+    );
+  });
+
+  it('does not accept a client certificate over plaintext', () => {
+    assert.throws(
+      () => new VaultClient('127.0.0.1:1', {
+        insecure: true,
+        protoPath,
+        clientCertFile: 'client.crt',
+        clientKeyFile: 'client.key',
+      }),
+      /cannot be used with insecure transport/,
+    );
+  });
+
+  it('requires the bearer secret as a second factor', () => {
+    assert.throws(
+      () => new VaultClient('127.0.0.1:1', {
+        protoPath,
+        clientCertFile: 'client.crt',
+        clientKeyFile: 'client.key',
+      }),
+      /second authentication factor/,
+    );
+  });
+
   it('refuses an empty nodeKeys array instead of silently disabling verification', () => {
     assert.throws(
       () => new VaultClient('127.0.0.1:1', { insecure: true, protoPath, nodeKeys: [] }),

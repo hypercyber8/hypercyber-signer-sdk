@@ -27,6 +27,24 @@ by the caller.
 import vaultclient "github.com/hypercyber8/hypercyber-signer-sdk/client"
 ```
 
+Production callers should use one certificate/key pair and one secret per
+least-privilege identity:
+
+```go
+client, err := vaultclient.New(ctx, endpoint,
+    vaultclient.WithCACert("/run/hypercyber-secrets/signer-server-ca.crt"),
+    vaultclient.WithClientCertificate(
+        "/run/hypercyber-secrets/signer-task-funding-client.crt",
+        "/run/hypercyber-secrets/signer-task-funding-client.key",
+    ),
+    vaultclient.WithSecret(secret),
+)
+```
+
+The client certificate and `x-vault-secret` are two required factors when the
+server enables enforcement. TLS clients require TLS 1.3. Do not share either
+identity across callers.
+
 `Create` is idempotent for the same `(walletID, markup)`. Use `GetWallet` to
 resolve an existing wallet's public identity.
 

@@ -3,9 +3,11 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"google.golang.org/grpc"
@@ -87,14 +89,39 @@ type Client interface {
 type Option func(*options)
 
 type options struct {
-	secret     string
-	isInsecure bool
-	caCertFile string
-	nodeKeys   []attest.NodeKey
-	threshold  int
+	secret         string
+	isInsecure     bool
+	caCertFile     string
+	clientCertFile string
+	clientKeyFile  string
+	nodeKeys       []attest.NodeKey
+	threshold      int
 	// optErr carries an option's own validation failure to New, which is the
 	// first place that can report one — an Option returns nothing.
 	optErr error
+}
+
+func tlsConfig(o *options) (*tls.Config, error) {
+	config := &tls.Config{MinVersion: tls.VersionTLS13}
+	if o.caCertFile != "" {
+		pemBytes, err := os.ReadFile(o.caCertFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load CA cert: %w", err)
+		}
+		roots := x509.NewCertPool()
+		if !roots.AppendCertsFromPEM(pemBytes) {
+			return nil, fmt.Errorf("failed to load CA cert: %q contains no usable certificates", o.caCertFile)
+		}
+		config.RootCAs = roots
+	}
+	if o.clientCertFile != "" {
+		certificate, err := tls.LoadX509KeyPair(o.clientCertFile, o.clientKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client certificate: %w", err)
+		}
+		config.Certificates = []tls.Certificate{certificate}
+	}
+	return config, nil
 }
 
 // WithNodeKeys enables verification of wallet attestations, and makes Create
@@ -149,6 +176,18 @@ func WithCACert(caCertFile string) Option {
 	}
 }
 
+// WithClientCertificate configures the caller identity presented during the
+// TLS handshake. Production callers should use a distinct certificate/key pair
+// per least-privilege credential and combine this with WithSecret: the vault
+// binds the certificate to that credential and requires both factors when
+// client certificate enforcement is enabled.
+func WithClientCertificate(certFile, keyFile string) Option {
+	return func(o *options) {
+		o.clientCertFile = certFile
+		o.clientKeyFile = keyFile
+	}
+}
+
 // New dials the vault gRPC endpoint and returns a Client.
 func New(_ context.Context, endpoint string, opts ...Option) (Client, error) {
 	o := &options{}
@@ -157,6 +196,15 @@ func New(_ context.Context, endpoint string, opts ...Option) (Client, error) {
 	}
 	if o.optErr != nil {
 		return nil, o.optErr
+	}
+	if (o.clientCertFile == "") != (o.clientKeyFile == "") {
+		return nil, errors.New("client: client certificate and key must be configured together")
+	}
+	if o.isInsecure && o.clientCertFile != "" {
+		return nil, errors.New("client: a client certificate cannot be used with insecure transport")
+	}
+	if o.clientCertFile != "" && o.secret == "" {
+		return nil, errors.New("client: mutual TLS also requires WithSecret as the second authentication factor")
 	}
 	// Check the configured identities here rather than only on the first Create:
 	// a set that cannot carry a threshold — duplicate party ids, or one key under
@@ -173,14 +221,12 @@ func New(_ context.Context, endpoint string, opts ...Option) (Client, error) {
 	switch {
 	case o.isInsecure:
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	case o.caCertFile != "":
-		creds, err := credentials.NewClientTLSFromFile(o.caCertFile, "")
-		if err != nil {
-			return nil, fmt.Errorf("failed to load CA cert: %w", err)
-		}
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	default:
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
+		config, err := tlsConfig(o)
+		if err != nil {
+			return nil, err
+		}
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(config)))
 	}
 	if o.secret != "" {
 		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(secretMetadataInterceptor(o.secret)))

@@ -24,6 +24,9 @@ import { VaultClient } from '@hypercyber/signer-client';
 
 const c = new VaultClient('vault.example.com:8080', {
   secret: process.env.VAULT_SECRET,
+  caCertFile: '/run/hypercyber-secrets/signer-server-ca.crt',
+  clientCertFile: '/run/hypercyber-secrets/signer-task-client.crt',
+  clientKeyFile: '/run/hypercyber-secrets/signer-task-client.key',
 });
 
 // Every wallet uses threshold ECDSA. No custody model to pick:
@@ -49,8 +52,13 @@ new VaultClient(endpoint, {
   secret,        // required for authenticated servers; sent as x-vault-secret metadata
   insecure,      // disable TLS (local dev only)
   caCertFile,    // path to a custom CA cert (e.g. self-signed)
+  clientCertFile,// caller certificate; configure with clientKeyFile
+  clientKeyFile, // caller private key; mutual TLS also requires secret
 });
 ```
+
+Secure channels require TLS 1.3. A client certificate must be paired with its
+private key and a per-identity `secret`; it cannot be used with `insecure`.
 
 If both `insecure` and `caCertFile` are omitted, TLS uses the system trust store.
 

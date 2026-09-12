@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -65,4 +66,45 @@ func TestNoNodeKeysStillBuilds(t *testing.T) {
 		t.Fatalf("client without node keys was rejected: %v", err)
 	}
 	c.Close()
+}
+
+func TestClientCertificateMustHaveMatchingKey(t *testing.T) {
+	for _, opt := range []Option{
+		WithClientCertificate("client.crt", ""),
+		WithClientCertificate("", "client.key"),
+	} {
+		c, err := New(context.Background(), "127.0.0.1:0", opt)
+		if err == nil {
+			c.Close()
+			t.Fatal("New accepted a partial client certificate identity")
+		}
+	}
+}
+
+func TestClientCertificateCannotUsePlaintextTransport(t *testing.T) {
+	c, err := New(context.Background(), "127.0.0.1:0", WithInsecure(),
+		WithClientCertificate("client.crt", "client.key"))
+	if err == nil {
+		c.Close()
+		t.Fatal("New accepted a client certificate with insecure transport")
+	}
+}
+
+func TestClientCertificateRequiresBearerSecondFactor(t *testing.T) {
+	c, err := New(context.Background(), "127.0.0.1:0",
+		WithClientCertificate("client.crt", "client.key"))
+	if err == nil {
+		c.Close()
+		t.Fatal("New accepted mutual TLS without the bearer-token second factor")
+	}
+}
+
+func TestTLSRequiresVersion13(t *testing.T) {
+	cfg, err := tlsConfig(&options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MinVersion != tls.VersionTLS13 {
+		t.Fatalf("MinVersion=%x, want TLS 1.3", cfg.MinVersion)
+	}
 }
