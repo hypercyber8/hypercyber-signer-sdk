@@ -82,6 +82,12 @@ type Client interface {
 	// signed, so the vault can authorize the action rather than only sign its
 	// hash. Prefer it wherever the action is available; see HyperliquidAction.
 	TypedDataWithAction(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *HyperliquidAction) (*RSVResult, error)
+	// TypedDataByWallet selects the signer by its durable wallet ID. Prefer it
+	// when the caller already has an authoritative wallet identity.
+	TypedDataByWallet(ctx context.Context, requestID, walletID, network string, chainID *big.Int, ds, tdh []byte) (*RSVResult, error)
+	// TypedDataWithActionByWallet is TypedDataByWallet plus the structured
+	// Hyperliquid action the signature authorizes.
+	TypedDataWithActionByWallet(ctx context.Context, requestID, walletID, network string, chainID *big.Int, ds, tdh []byte, action *HyperliquidAction) (*RSVResult, error)
 	Close()
 }
 
@@ -361,20 +367,41 @@ func (c *client) TypedData(ctx context.Context, requestID string, address common
 }
 
 func (c *client) TypedDataWithAction(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *HyperliquidAction) (*RSVResult, error) {
-	var wire *vaultv1.HyperliquidAction
-	if action != nil {
-		wire = &vaultv1.HyperliquidAction{
-			ActionMsgpack: action.Msgpack,
-			Nonce:         action.Nonce,
-			VaultAddress:  action.VaultAddress,
-			IsMainnet:     action.IsMainnet,
-		}
-		if action.ExpiresAfter != nil {
-			wire.ExpiresAfter = *action.ExpiresAfter
-			wire.HasExpiresAfter = true
-		}
+	return c.typedData(ctx, requestID, address, network, chainID, ds, tdh, hyperliquidActionWire(action))
+}
+
+func (c *client) TypedDataByWallet(ctx context.Context, requestID, walletID, network string, chainID *big.Int, ds, tdh []byte) (*RSVResult, error) {
+	return c.TypedDataWithActionByWallet(ctx, requestID, walletID, network, chainID, ds, tdh, nil)
+}
+
+func (c *client) TypedDataWithActionByWallet(ctx context.Context, requestID, walletID, network string, chainID *big.Int, ds, tdh []byte, action *HyperliquidAction) (*RSVResult, error) {
+	resp, err := c.rpc.TypedDataByWallet(ctx, &vaultv1.TypedDataByWalletRequest{
+		WalletId:        walletID,
+		RequestId:       requestID,
+		Network:         network,
+		ChainId:         chainIDToBytes(chainID),
+		DomainSeparator: ds,
+		TypedDataHash:   tdh,
+		Action:          hyperliquidActionWire(action),
+	})
+	return typedDataResult(resp, err)
+}
+
+func hyperliquidActionWire(action *HyperliquidAction) *vaultv1.HyperliquidAction {
+	if action == nil {
+		return nil
 	}
-	return c.typedData(ctx, requestID, address, network, chainID, ds, tdh, wire)
+	wire := &vaultv1.HyperliquidAction{
+		ActionMsgpack: action.Msgpack,
+		Nonce:         action.Nonce,
+		VaultAddress:  action.VaultAddress,
+		IsMainnet:     action.IsMainnet,
+	}
+	if action.ExpiresAfter != nil {
+		wire.ExpiresAfter = *action.ExpiresAfter
+		wire.HasExpiresAfter = true
+	}
+	return wire
 }
 
 func (c *client) typedData(ctx context.Context, requestID string, address common.Address, network string, chainID *big.Int, ds, tdh []byte, action *vaultv1.HyperliquidAction) (*RSVResult, error) {
@@ -387,6 +414,10 @@ func (c *client) typedData(ctx context.Context, requestID string, address common
 		TypedDataHash:   tdh,
 		Action:          action,
 	})
+	return typedDataResult(resp, err)
+}
+
+func typedDataResult(resp *vaultv1.RSVResponse, err error) (*RSVResult, error) {
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,9 @@ export {
   type SignArgs,
   type SignByWalletArgs,
   type TypedDataArgs,
+  type TypedDataByWalletArgs,
   type TypedDataWithActionArgs,
+  type TypedDataWithActionByWalletArgs,
   type HyperliquidAction,
 } from './client';
 

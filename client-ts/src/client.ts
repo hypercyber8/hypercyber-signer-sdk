@@ -116,6 +116,15 @@ export interface TypedDataArgs {
   typedDataHash: Uint8Array;
 }
 
+export interface TypedDataByWalletArgs {
+  requestId: string;
+  walletId: string;
+  network: string;
+  chainId: bigint;
+  domainSeparator: Uint8Array;
+  typedDataHash: Uint8Array;
+}
+
 /**
  * A Hyperliquid L1 action, so the vault can authorize WHAT is being signed
  * rather than only sign its hash.
@@ -148,6 +157,10 @@ export interface HyperliquidAction {
 }
 
 export interface TypedDataWithActionArgs extends TypedDataArgs {
+  action: HyperliquidAction;
+}
+
+export interface TypedDataWithActionByWalletArgs extends TypedDataByWalletArgs {
   action: HyperliquidAction;
 }
 
@@ -207,6 +220,7 @@ interface VaultGrpcClient extends grpc.Client {
   SignByAddress(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   SignByWallet(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
   TypedData(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
+  TypedDataByWallet(req: unknown, meta: grpc.Metadata, cb: (err: grpc.ServiceError | null, resp: any) => void): void;
 }
 
 function loadService(protoPath: string): grpc.ServiceClientConstructor {
@@ -418,6 +432,16 @@ export class VaultClient {
     return this.sendTypedData(args, actionToWire(args.action));
   }
 
+  /** Signs typed data for an explicitly selected durable wallet ID. */
+  async typedDataByWallet(args: TypedDataByWalletArgs): Promise<RSVResult> {
+    return this.sendTypedDataByWallet(args, undefined);
+  }
+
+  /** `typedDataByWallet` plus a structured Hyperliquid action. */
+  async typedDataWithActionByWallet(args: TypedDataWithActionByWalletArgs): Promise<RSVResult> {
+    return this.sendTypedDataByWallet(args, actionToWire(args.action));
+  }
+
   private async sendTypedData(
     args: TypedDataArgs,
     action: Record<string, unknown> | undefined,
@@ -427,6 +451,26 @@ export class VaultClient {
       network: args.network,
       chainId: bigIntToBytes(args.chainId),
       address: addressToBytes(args.address),
+      domainSeparator: Buffer.from(args.domainSeparator),
+      typedDataHash: Buffer.from(args.typedDataHash),
+      action,
+    });
+    return {
+      r: bytesToBigInt(resp.r),
+      s: bytesToBigInt(resp.s),
+      v: resp.v,
+    };
+  }
+
+  private async sendTypedDataByWallet(
+    args: TypedDataByWalletArgs,
+    action: Record<string, unknown> | undefined,
+  ): Promise<RSVResult> {
+    const resp = await this.call<any>('TypedDataByWallet', {
+      walletId: args.walletId,
+      requestId: args.requestId,
+      network: args.network,
+      chainId: bigIntToBytes(args.chainId),
       domainSeparator: Buffer.from(args.domainSeparator),
       typedDataHash: Buffer.from(args.typedDataHash),
       action,
