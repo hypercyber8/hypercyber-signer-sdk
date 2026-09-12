@@ -32,6 +32,10 @@ class CapturingVault {
         this.request = call.request;
         cb(null, { r: Buffer.alloc(32, 1), s: Buffer.alloc(32, 2), v: 27 });
       },
+      TypedDataByWallet: (call: any, cb: (e: null, r: unknown) => void) => {
+        this.request = call.request;
+        cb(null, { r: Buffer.alloc(32, 1), s: Buffer.alloc(32, 2), v: 27 });
+      },
     });
     this.port = await new Promise<number>((resolve, reject) => {
       this.server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(), (err, port) =>
@@ -100,5 +104,27 @@ describe('typedData() and typedDataWithAction()', () => {
 
     assert.equal(vault.request.action.hasExpiresAfter, true);
     assert.equal(vault.request.action.expiresAfter, '0');
+  });
+
+  it('selects structured typed data by durable wallet ID', async () => {
+    const client = connect();
+    const msgpack = Buffer.from([0x80]);
+    try {
+      await client.typedDataWithActionByWallet({
+        requestId: base.requestId,
+        walletId: 'trading-global-pool-slot-007',
+        network: base.network,
+        chainId: base.chainId,
+        domainSeparator: base.domainSeparator,
+        typedDataHash: base.typedDataHash,
+        action: { actionMsgpack: msgpack, nonce: 7, isMainnet: true },
+      });
+    } finally {
+      client.close();
+    }
+
+    assert.equal(vault.request.walletId, 'trading-global-pool-slot-007');
+    assert.deepEqual(vault.request.action.actionMsgpack, msgpack);
+    assert.equal(vault.request.address, undefined);
   });
 });

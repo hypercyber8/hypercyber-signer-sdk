@@ -701,6 +701,102 @@ func (x *TypedDataRequest) GetAction() *HyperliquidAction {
 	return nil
 }
 
+// TypedDataByWallet signs the same EIP-712 pre-image as TypedData, but selects
+// the threshold wallet by its durable wallet ID rather than by an address.
+// Callers that already have a trusted wallet ID should use this form so wallet
+// authorization cannot be affected by an ambiguous or legacy address mapping.
+type TypedDataByWalletRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	WalletId        string                 `protobuf:"bytes,1,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`
+	RequestId       string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Network         string                 `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
+	ChainId         []byte                 `protobuf:"bytes,4,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`
+	DomainSeparator []byte                 `protobuf:"bytes,5,opt,name=domain_separator,json=domainSeparator,proto3" json:"domain_separator,omitempty"`
+	TypedDataHash   []byte                 `protobuf:"bytes,6,opt,name=typed_data_hash,json=typedDataHash,proto3" json:"typed_data_hash,omitempty"`
+	Action          *HyperliquidAction     `protobuf:"bytes,7,opt,name=action,proto3" json:"action,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TypedDataByWalletRequest) Reset() {
+	*x = TypedDataByWalletRequest{}
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypedDataByWalletRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypedDataByWalletRequest) ProtoMessage() {}
+
+func (x *TypedDataByWalletRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypedDataByWalletRequest.ProtoReflect.Descriptor instead.
+func (*TypedDataByWalletRequest) Descriptor() ([]byte, []int) {
+	return file_proto_vault_v1_vault_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *TypedDataByWalletRequest) GetWalletId() string {
+	if x != nil {
+		return x.WalletId
+	}
+	return ""
+}
+
+func (x *TypedDataByWalletRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *TypedDataByWalletRequest) GetNetwork() string {
+	if x != nil {
+		return x.Network
+	}
+	return ""
+}
+
+func (x *TypedDataByWalletRequest) GetChainId() []byte {
+	if x != nil {
+		return x.ChainId
+	}
+	return nil
+}
+
+func (x *TypedDataByWalletRequest) GetDomainSeparator() []byte {
+	if x != nil {
+		return x.DomainSeparator
+	}
+	return nil
+}
+
+func (x *TypedDataByWalletRequest) GetTypedDataHash() []byte {
+	if x != nil {
+		return x.TypedDataHash
+	}
+	return nil
+}
+
+func (x *TypedDataByWalletRequest) GetAction() *HyperliquidAction {
+	if x != nil {
+		return x.Action
+	}
+	return nil
+}
+
 // HyperliquidAction is the structured form of an L1 action, so the vault can
 // apply policy to what is actually being signed instead of to an opaque hash.
 //
@@ -736,7 +832,7 @@ type HyperliquidAction struct {
 
 func (x *HyperliquidAction) Reset() {
 	*x = HyperliquidAction{}
-	mi := &file_proto_vault_v1_vault_proto_msgTypes[10]
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -748,7 +844,7 @@ func (x *HyperliquidAction) String() string {
 func (*HyperliquidAction) ProtoMessage() {}
 
 func (x *HyperliquidAction) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_vault_v1_vault_proto_msgTypes[10]
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -761,7 +857,7 @@ func (x *HyperliquidAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HyperliquidAction.ProtoReflect.Descriptor instead.
 func (*HyperliquidAction) Descriptor() ([]byte, []int) {
-	return file_proto_vault_v1_vault_proto_rawDescGZIP(), []int{10}
+	return file_proto_vault_v1_vault_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HyperliquidAction) GetActionMsgpack() []byte {
@@ -817,7 +913,7 @@ type RSVResponse struct {
 
 func (x *RSVResponse) Reset() {
 	*x = RSVResponse{}
-	mi := &file_proto_vault_v1_vault_proto_msgTypes[11]
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -829,7 +925,7 @@ func (x *RSVResponse) String() string {
 func (*RSVResponse) ProtoMessage() {}
 
 func (x *RSVResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_vault_v1_vault_proto_msgTypes[11]
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -842,7 +938,7 @@ func (x *RSVResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RSVResponse.ProtoReflect.Descriptor instead.
 func (*RSVResponse) Descriptor() ([]byte, []int) {
-	return file_proto_vault_v1_vault_proto_rawDescGZIP(), []int{11}
+	return file_proto_vault_v1_vault_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RSVResponse) GetR() []byte {
@@ -920,7 +1016,16 @@ const file_proto_vault_v1_vault_proto_rawDesc = "" +
 	"\x10domain_separator\x18\x05 \x01(\fR\x0fdomainSeparator\x12&\n" +
 	"\x0ftyped_data_hash\x18\x06 \x01(\fR\rtypedDataHash\x123\n" +
 	"\x06action\x18\a \x01(\v2\x1b.vault.v1.HyperliquidActionR\x06actionJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
-	"R\amessageR\acalibur\"\xe5\x01\n" +
+	"R\amessageR\acalibur\"\x93\x02\n" +
+	"\x18TypedDataByWalletRequest\x12\x1b\n" +
+	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12\x18\n" +
+	"\anetwork\x18\x03 \x01(\tR\anetwork\x12\x19\n" +
+	"\bchain_id\x18\x04 \x01(\fR\achainId\x12)\n" +
+	"\x10domain_separator\x18\x05 \x01(\fR\x0fdomainSeparator\x12&\n" +
+	"\x0ftyped_data_hash\x18\x06 \x01(\fR\rtypedDataHash\x123\n" +
+	"\x06action\x18\a \x01(\v2\x1b.vault.v1.HyperliquidActionR\x06action\"\xe5\x01\n" +
 	"\x11HyperliquidAction\x12%\n" +
 	"\x0eaction_msgpack\x18\x01 \x01(\fR\ractionMsgpack\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\x04R\x05nonce\x12#\n" +
@@ -932,13 +1037,14 @@ const file_proto_vault_v1_vault_proto_rawDesc = "" +
 	"\vRSVResponse\x12\f\n" +
 	"\x01r\x18\x01 \x01(\fR\x01r\x12\f\n" +
 	"\x01s\x18\x02 \x01(\fR\x01s\x12\f\n" +
-	"\x01v\x18\x03 \x01(\x05R\x01v2\xf2\x02\n" +
+	"\x01v\x18\x03 \x01(\x05R\x01v2\xc2\x03\n" +
 	"\fVaultService\x12;\n" +
 	"\x06Create\x12\x17.vault.v1.CreateRequest\x1a\x18.vault.v1.CreateResponse\x12D\n" +
 	"\tGetWallet\x12\x1a.vault.v1.GetWalletRequest\x1a\x1b.vault.v1.GetWalletResponse\x12M\n" +
 	"\fSignByWallet\x12\x1d.vault.v1.SignByWalletRequest\x1a\x1e.vault.v1.SignByWalletResponse\x12P\n" +
 	"\rSignByAddress\x12\x1e.vault.v1.SignByAddressRequest\x1a\x1f.vault.v1.SignByAddressResponse\x12>\n" +
-	"\tTypedData\x12\x1a.vault.v1.TypedDataRequest\x1a\x15.vault.v1.RSVResponseBEZCgithub.com/hypercyber8/hypercyber-signer-sdk/proto/vault/v1;vaultv1b\x06proto3"
+	"\tTypedData\x12\x1a.vault.v1.TypedDataRequest\x1a\x15.vault.v1.RSVResponse\x12N\n" +
+	"\x11TypedDataByWallet\x12\".vault.v1.TypedDataByWalletRequest\x1a\x15.vault.v1.RSVResponseBEZCgithub.com/hypercyber8/hypercyber-signer-sdk/proto/vault/v1;vaultv1b\x06proto3"
 
 var (
 	file_proto_vault_v1_vault_proto_rawDescOnce sync.Once
@@ -952,39 +1058,43 @@ func file_proto_vault_v1_vault_proto_rawDescGZIP() []byte {
 	return file_proto_vault_v1_vault_proto_rawDescData
 }
 
-var file_proto_vault_v1_vault_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_vault_v1_vault_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_proto_vault_v1_vault_proto_goTypes = []any{
-	(*CreateRequest)(nil),         // 0: vault.v1.CreateRequest
-	(*WalletAttestation)(nil),     // 1: vault.v1.WalletAttestation
-	(*CreateResponse)(nil),        // 2: vault.v1.CreateResponse
-	(*GetWalletRequest)(nil),      // 3: vault.v1.GetWalletRequest
-	(*GetWalletResponse)(nil),     // 4: vault.v1.GetWalletResponse
-	(*SignByWalletRequest)(nil),   // 5: vault.v1.SignByWalletRequest
-	(*SignByWalletResponse)(nil),  // 6: vault.v1.SignByWalletResponse
-	(*SignByAddressRequest)(nil),  // 7: vault.v1.SignByAddressRequest
-	(*SignByAddressResponse)(nil), // 8: vault.v1.SignByAddressResponse
-	(*TypedDataRequest)(nil),      // 9: vault.v1.TypedDataRequest
-	(*HyperliquidAction)(nil),     // 10: vault.v1.HyperliquidAction
-	(*RSVResponse)(nil),           // 11: vault.v1.RSVResponse
+	(*CreateRequest)(nil),            // 0: vault.v1.CreateRequest
+	(*WalletAttestation)(nil),        // 1: vault.v1.WalletAttestation
+	(*CreateResponse)(nil),           // 2: vault.v1.CreateResponse
+	(*GetWalletRequest)(nil),         // 3: vault.v1.GetWalletRequest
+	(*GetWalletResponse)(nil),        // 4: vault.v1.GetWalletResponse
+	(*SignByWalletRequest)(nil),      // 5: vault.v1.SignByWalletRequest
+	(*SignByWalletResponse)(nil),     // 6: vault.v1.SignByWalletResponse
+	(*SignByAddressRequest)(nil),     // 7: vault.v1.SignByAddressRequest
+	(*SignByAddressResponse)(nil),    // 8: vault.v1.SignByAddressResponse
+	(*TypedDataRequest)(nil),         // 9: vault.v1.TypedDataRequest
+	(*TypedDataByWalletRequest)(nil), // 10: vault.v1.TypedDataByWalletRequest
+	(*HyperliquidAction)(nil),        // 11: vault.v1.HyperliquidAction
+	(*RSVResponse)(nil),              // 12: vault.v1.RSVResponse
 }
 var file_proto_vault_v1_vault_proto_depIdxs = []int32{
 	1,  // 0: vault.v1.CreateResponse.attestations:type_name -> vault.v1.WalletAttestation
-	10, // 1: vault.v1.TypedDataRequest.action:type_name -> vault.v1.HyperliquidAction
-	0,  // 2: vault.v1.VaultService.Create:input_type -> vault.v1.CreateRequest
-	3,  // 3: vault.v1.VaultService.GetWallet:input_type -> vault.v1.GetWalletRequest
-	5,  // 4: vault.v1.VaultService.SignByWallet:input_type -> vault.v1.SignByWalletRequest
-	7,  // 5: vault.v1.VaultService.SignByAddress:input_type -> vault.v1.SignByAddressRequest
-	9,  // 6: vault.v1.VaultService.TypedData:input_type -> vault.v1.TypedDataRequest
-	2,  // 7: vault.v1.VaultService.Create:output_type -> vault.v1.CreateResponse
-	4,  // 8: vault.v1.VaultService.GetWallet:output_type -> vault.v1.GetWalletResponse
-	6,  // 9: vault.v1.VaultService.SignByWallet:output_type -> vault.v1.SignByWalletResponse
-	8,  // 10: vault.v1.VaultService.SignByAddress:output_type -> vault.v1.SignByAddressResponse
-	11, // 11: vault.v1.VaultService.TypedData:output_type -> vault.v1.RSVResponse
-	7,  // [7:12] is the sub-list for method output_type
-	2,  // [2:7] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	11, // 1: vault.v1.TypedDataRequest.action:type_name -> vault.v1.HyperliquidAction
+	11, // 2: vault.v1.TypedDataByWalletRequest.action:type_name -> vault.v1.HyperliquidAction
+	0,  // 3: vault.v1.VaultService.Create:input_type -> vault.v1.CreateRequest
+	3,  // 4: vault.v1.VaultService.GetWallet:input_type -> vault.v1.GetWalletRequest
+	5,  // 5: vault.v1.VaultService.SignByWallet:input_type -> vault.v1.SignByWalletRequest
+	7,  // 6: vault.v1.VaultService.SignByAddress:input_type -> vault.v1.SignByAddressRequest
+	9,  // 7: vault.v1.VaultService.TypedData:input_type -> vault.v1.TypedDataRequest
+	10, // 8: vault.v1.VaultService.TypedDataByWallet:input_type -> vault.v1.TypedDataByWalletRequest
+	2,  // 9: vault.v1.VaultService.Create:output_type -> vault.v1.CreateResponse
+	4,  // 10: vault.v1.VaultService.GetWallet:output_type -> vault.v1.GetWalletResponse
+	6,  // 11: vault.v1.VaultService.SignByWallet:output_type -> vault.v1.SignByWalletResponse
+	8,  // 12: vault.v1.VaultService.SignByAddress:output_type -> vault.v1.SignByAddressResponse
+	12, // 13: vault.v1.VaultService.TypedData:output_type -> vault.v1.RSVResponse
+	12, // 14: vault.v1.VaultService.TypedDataByWallet:output_type -> vault.v1.RSVResponse
+	9,  // [9:15] is the sub-list for method output_type
+	3,  // [3:9] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_proto_vault_v1_vault_proto_init() }
@@ -998,7 +1108,7 @@ func file_proto_vault_v1_vault_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_vault_v1_vault_proto_rawDesc), len(file_proto_vault_v1_vault_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

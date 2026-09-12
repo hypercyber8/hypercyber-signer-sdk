@@ -98,6 +98,16 @@ message TypedDataRequest {
   reserved "message", "calibur";
 }
 
+message TypedDataByWalletRequest {
+  string wallet_id        = 1;
+  string request_id       = 2;
+  string network          = 3;
+  bytes  chain_id         = 4;
+  bytes  domain_separator = 5;
+  bytes  typed_data_hash  = 6;
+  HyperliquidAction action = 7;
+}
+
 // HyperliquidAction is the structured form of an L1 action, so the vault can
 // apply policy to what is actually being signed instead of to an opaque hash.
 //
@@ -145,4 +155,5 @@ service VaultService {
   rpc SignByWallet(SignByWalletRequest) returns (SignByWalletResponse);
   rpc SignByAddress(SignByAddressRequest) returns (SignByAddressResponse);
   rpc TypedData(TypedDataRequest) returns (RSVResponse);
+  rpc TypedDataByWallet(TypedDataByWalletRequest) returns (RSVResponse);
 }

@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	VaultService_Create_FullMethodName        = "/vault.v1.VaultService/Create"
-	VaultService_GetWallet_FullMethodName     = "/vault.v1.VaultService/GetWallet"
-	VaultService_SignByWallet_FullMethodName  = "/vault.v1.VaultService/SignByWallet"
-	VaultService_SignByAddress_FullMethodName = "/vault.v1.VaultService/SignByAddress"
-	VaultService_TypedData_FullMethodName     = "/vault.v1.VaultService/TypedData"
+	VaultService_Create_FullMethodName            = "/vault.v1.VaultService/Create"
+	VaultService_GetWallet_FullMethodName         = "/vault.v1.VaultService/GetWallet"
+	VaultService_SignByWallet_FullMethodName      = "/vault.v1.VaultService/SignByWallet"
+	VaultService_SignByAddress_FullMethodName     = "/vault.v1.VaultService/SignByAddress"
+	VaultService_TypedData_FullMethodName         = "/vault.v1.VaultService/TypedData"
+	VaultService_TypedDataByWallet_FullMethodName = "/vault.v1.VaultService/TypedDataByWallet"
 )
 
 // VaultServiceClient is the client API for VaultService service.
@@ -41,6 +42,7 @@ type VaultServiceClient interface {
 	SignByWallet(ctx context.Context, in *SignByWalletRequest, opts ...grpc.CallOption) (*SignByWalletResponse, error)
 	SignByAddress(ctx context.Context, in *SignByAddressRequest, opts ...grpc.CallOption) (*SignByAddressResponse, error)
 	TypedData(ctx context.Context, in *TypedDataRequest, opts ...grpc.CallOption) (*RSVResponse, error)
+	TypedDataByWallet(ctx context.Context, in *TypedDataByWalletRequest, opts ...grpc.CallOption) (*RSVResponse, error)
 }
 
 type vaultServiceClient struct {
@@ -101,6 +103,16 @@ func (c *vaultServiceClient) TypedData(ctx context.Context, in *TypedDataRequest
 	return out, nil
 }
 
+func (c *vaultServiceClient) TypedDataByWallet(ctx context.Context, in *TypedDataByWalletRequest, opts ...grpc.CallOption) (*RSVResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RSVResponse)
+	err := c.cc.Invoke(ctx, VaultService_TypedDataByWallet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VaultServiceServer is the server API for VaultService service.
 // All implementations must embed UnimplementedVaultServiceServer
 // for forward compatibility.
@@ -116,6 +128,7 @@ type VaultServiceServer interface {
 	SignByWallet(context.Context, *SignByWalletRequest) (*SignByWalletResponse, error)
 	SignByAddress(context.Context, *SignByAddressRequest) (*SignByAddressResponse, error)
 	TypedData(context.Context, *TypedDataRequest) (*RSVResponse, error)
+	TypedDataByWallet(context.Context, *TypedDataByWalletRequest) (*RSVResponse, error)
 	mustEmbedUnimplementedVaultServiceServer()
 }
 
@@ -140,6 +153,9 @@ func (UnimplementedVaultServiceServer) SignByAddress(context.Context, *SignByAdd
 }
 func (UnimplementedVaultServiceServer) TypedData(context.Context, *TypedDataRequest) (*RSVResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TypedData not implemented")
+}
+func (UnimplementedVaultServiceServer) TypedDataByWallet(context.Context, *TypedDataByWalletRequest) (*RSVResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TypedDataByWallet not implemented")
 }
 func (UnimplementedVaultServiceServer) mustEmbedUnimplementedVaultServiceServer() {}
 func (UnimplementedVaultServiceServer) testEmbeddedByValue()                      {}
@@ -252,6 +268,24 @@ func _VaultService_TypedData_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VaultService_TypedDataByWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TypedDataByWalletRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VaultServiceServer).TypedDataByWallet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VaultService_TypedDataByWallet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VaultServiceServer).TypedDataByWallet(ctx, req.(*TypedDataByWalletRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VaultService_ServiceDesc is the grpc.ServiceDesc for VaultService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -278,6 +312,10 @@ var VaultService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TypedData",
 			Handler:    _VaultService_TypedData_Handler,
+		},
+		{
+			MethodName: "TypedDataByWallet",
+			Handler:    _VaultService_TypedDataByWallet_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
