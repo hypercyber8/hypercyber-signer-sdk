@@ -962,6 +962,82 @@ func (x *RSVResponse) GetV() int32 {
 	return 0
 }
 
+type BindWalletOwnerRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	WalletId           string                 `protobuf:"bytes,1,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`
+	Address            string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	OwnerAddress       string                 `protobuf:"bytes,3,opt,name=owner_address,json=ownerAddress,proto3" json:"owner_address,omitempty"`
+	Network            string                 `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
+	AuthoritySignature []byte                 `protobuf:"bytes,5,opt,name=authority_signature,json=authoritySignature,proto3" json:"authority_signature,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *BindWalletOwnerRequest) Reset() {
+	*x = BindWalletOwnerRequest{}
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BindWalletOwnerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BindWalletOwnerRequest) ProtoMessage() {}
+
+func (x *BindWalletOwnerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_vault_v1_vault_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BindWalletOwnerRequest.ProtoReflect.Descriptor instead.
+func (*BindWalletOwnerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_vault_v1_vault_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *BindWalletOwnerRequest) GetWalletId() string {
+	if x != nil {
+		return x.WalletId
+	}
+	return ""
+}
+
+func (x *BindWalletOwnerRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *BindWalletOwnerRequest) GetOwnerAddress() string {
+	if x != nil {
+		return x.OwnerAddress
+	}
+	return ""
+}
+
+func (x *BindWalletOwnerRequest) GetNetwork() string {
+	if x != nil {
+		return x.Network
+	}
+	return ""
+}
+
+func (x *BindWalletOwnerRequest) GetAuthoritySignature() []byte {
+	if x != nil {
+		return x.AuthoritySignature
+	}
+	return nil
+}
+
 var File_proto_vault_v1_vault_proto protoreflect.FileDescriptor
 
 const file_proto_vault_v1_vault_proto_rawDesc = "" +
@@ -1037,8 +1113,15 @@ const file_proto_vault_v1_vault_proto_rawDesc = "" +
 	"\vRSVResponse\x12\f\n" +
 	"\x01r\x18\x01 \x01(\fR\x01r\x12\f\n" +
 	"\x01s\x18\x02 \x01(\fR\x01s\x12\f\n" +
-	"\x01v\x18\x03 \x01(\x05R\x01v2\xc2\x03\n" +
-	"\fVaultService\x12;\n" +
+	"\x01v\x18\x03 \x01(\x05R\x01v\"\xbf\x01\n" +
+	"\x16BindWalletOwnerRequest\x12\x1b\n" +
+	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12\x18\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\x12#\n" +
+	"\rowner_address\x18\x03 \x01(\tR\fownerAddress\x12\x18\n" +
+	"\anetwork\x18\x04 \x01(\tR\anetwork\x12/\n" +
+	"\x13authority_signature\x18\x05 \x01(\fR\x12authoritySignature2\x94\x04\n" +
+	"\fVaultService\x12P\n" +
+	"\x0fBindWalletOwner\x12 .vault.v1.BindWalletOwnerRequest\x1a\x1b.vault.v1.GetWalletResponse\x12;\n" +
 	"\x06Create\x12\x17.vault.v1.CreateRequest\x1a\x18.vault.v1.CreateResponse\x12D\n" +
 	"\tGetWallet\x12\x1a.vault.v1.GetWalletRequest\x1a\x1b.vault.v1.GetWalletResponse\x12M\n" +
 	"\fSignByWallet\x12\x1d.vault.v1.SignByWalletRequest\x1a\x1e.vault.v1.SignByWalletResponse\x12P\n" +
@@ -1058,7 +1141,7 @@ func file_proto_vault_v1_vault_proto_rawDescGZIP() []byte {
 	return file_proto_vault_v1_vault_proto_rawDescData
 }
 
-var file_proto_vault_v1_vault_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_proto_vault_v1_vault_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_proto_vault_v1_vault_proto_goTypes = []any{
 	(*CreateRequest)(nil),            // 0: vault.v1.CreateRequest
 	(*WalletAttestation)(nil),        // 1: vault.v1.WalletAttestation
@@ -1073,25 +1156,28 @@ var file_proto_vault_v1_vault_proto_goTypes = []any{
 	(*TypedDataByWalletRequest)(nil), // 10: vault.v1.TypedDataByWalletRequest
 	(*HyperliquidAction)(nil),        // 11: vault.v1.HyperliquidAction
 	(*RSVResponse)(nil),              // 12: vault.v1.RSVResponse
+	(*BindWalletOwnerRequest)(nil),   // 13: vault.v1.BindWalletOwnerRequest
 }
 var file_proto_vault_v1_vault_proto_depIdxs = []int32{
 	1,  // 0: vault.v1.CreateResponse.attestations:type_name -> vault.v1.WalletAttestation
 	11, // 1: vault.v1.TypedDataRequest.action:type_name -> vault.v1.HyperliquidAction
 	11, // 2: vault.v1.TypedDataByWalletRequest.action:type_name -> vault.v1.HyperliquidAction
-	0,  // 3: vault.v1.VaultService.Create:input_type -> vault.v1.CreateRequest
-	3,  // 4: vault.v1.VaultService.GetWallet:input_type -> vault.v1.GetWalletRequest
-	5,  // 5: vault.v1.VaultService.SignByWallet:input_type -> vault.v1.SignByWalletRequest
-	7,  // 6: vault.v1.VaultService.SignByAddress:input_type -> vault.v1.SignByAddressRequest
-	9,  // 7: vault.v1.VaultService.TypedData:input_type -> vault.v1.TypedDataRequest
-	10, // 8: vault.v1.VaultService.TypedDataByWallet:input_type -> vault.v1.TypedDataByWalletRequest
-	2,  // 9: vault.v1.VaultService.Create:output_type -> vault.v1.CreateResponse
-	4,  // 10: vault.v1.VaultService.GetWallet:output_type -> vault.v1.GetWalletResponse
-	6,  // 11: vault.v1.VaultService.SignByWallet:output_type -> vault.v1.SignByWalletResponse
-	8,  // 12: vault.v1.VaultService.SignByAddress:output_type -> vault.v1.SignByAddressResponse
-	12, // 13: vault.v1.VaultService.TypedData:output_type -> vault.v1.RSVResponse
-	12, // 14: vault.v1.VaultService.TypedDataByWallet:output_type -> vault.v1.RSVResponse
-	9,  // [9:15] is the sub-list for method output_type
-	3,  // [3:9] is the sub-list for method input_type
+	13, // 3: vault.v1.VaultService.BindWalletOwner:input_type -> vault.v1.BindWalletOwnerRequest
+	0,  // 4: vault.v1.VaultService.Create:input_type -> vault.v1.CreateRequest
+	3,  // 5: vault.v1.VaultService.GetWallet:input_type -> vault.v1.GetWalletRequest
+	5,  // 6: vault.v1.VaultService.SignByWallet:input_type -> vault.v1.SignByWalletRequest
+	7,  // 7: vault.v1.VaultService.SignByAddress:input_type -> vault.v1.SignByAddressRequest
+	9,  // 8: vault.v1.VaultService.TypedData:input_type -> vault.v1.TypedDataRequest
+	10, // 9: vault.v1.VaultService.TypedDataByWallet:input_type -> vault.v1.TypedDataByWalletRequest
+	4,  // 10: vault.v1.VaultService.BindWalletOwner:output_type -> vault.v1.GetWalletResponse
+	2,  // 11: vault.v1.VaultService.Create:output_type -> vault.v1.CreateResponse
+	4,  // 12: vault.v1.VaultService.GetWallet:output_type -> vault.v1.GetWalletResponse
+	6,  // 13: vault.v1.VaultService.SignByWallet:output_type -> vault.v1.SignByWalletResponse
+	8,  // 14: vault.v1.VaultService.SignByAddress:output_type -> vault.v1.SignByAddressResponse
+	12, // 15: vault.v1.VaultService.TypedData:output_type -> vault.v1.RSVResponse
+	12, // 16: vault.v1.VaultService.TypedDataByWallet:output_type -> vault.v1.RSVResponse
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1108,7 +1194,7 @@ func file_proto_vault_v1_vault_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_vault_v1_vault_proto_rawDesc), len(file_proto_vault_v1_vault_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

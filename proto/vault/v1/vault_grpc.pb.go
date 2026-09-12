@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	VaultService_BindWalletOwner_FullMethodName   = "/vault.v1.VaultService/BindWalletOwner"
 	VaultService_Create_FullMethodName            = "/vault.v1.VaultService/Create"
 	VaultService_GetWallet_FullMethodName         = "/vault.v1.VaultService/GetWallet"
 	VaultService_SignByWallet_FullMethodName      = "/vault.v1.VaultService/SignByWallet"
@@ -37,6 +38,9 @@ const (
 // guarantee is that no node holds one. Clients still calling it receive
 // UNIMPLEMENTED from gRPC itself. Wallets are created via DKG with Create.
 type VaultServiceClient interface {
+	// BindWalletOwner permanently registers an authority-signed owner binding.
+	// It cannot sign transactions or replace an existing owner.
+	BindWalletOwner(ctx context.Context, in *BindWalletOwnerRequest, opts ...grpc.CallOption) (*GetWalletResponse, error)
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	GetWallet(ctx context.Context, in *GetWalletRequest, opts ...grpc.CallOption) (*GetWalletResponse, error)
 	SignByWallet(ctx context.Context, in *SignByWalletRequest, opts ...grpc.CallOption) (*SignByWalletResponse, error)
@@ -51,6 +55,16 @@ type vaultServiceClient struct {
 
 func NewVaultServiceClient(cc grpc.ClientConnInterface) VaultServiceClient {
 	return &vaultServiceClient{cc}
+}
+
+func (c *vaultServiceClient) BindWalletOwner(ctx context.Context, in *BindWalletOwnerRequest, opts ...grpc.CallOption) (*GetWalletResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetWalletResponse)
+	err := c.cc.Invoke(ctx, VaultService_BindWalletOwner_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *vaultServiceClient) Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error) {
@@ -123,6 +137,9 @@ func (c *vaultServiceClient) TypedDataByWallet(ctx context.Context, in *TypedDat
 // guarantee is that no node holds one. Clients still calling it receive
 // UNIMPLEMENTED from gRPC itself. Wallets are created via DKG with Create.
 type VaultServiceServer interface {
+	// BindWalletOwner permanently registers an authority-signed owner binding.
+	// It cannot sign transactions or replace an existing owner.
+	BindWalletOwner(context.Context, *BindWalletOwnerRequest) (*GetWalletResponse, error)
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	GetWallet(context.Context, *GetWalletRequest) (*GetWalletResponse, error)
 	SignByWallet(context.Context, *SignByWalletRequest) (*SignByWalletResponse, error)
@@ -139,6 +156,9 @@ type VaultServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedVaultServiceServer struct{}
 
+func (UnimplementedVaultServiceServer) BindWalletOwner(context.Context, *BindWalletOwnerRequest) (*GetWalletResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BindWalletOwner not implemented")
+}
 func (UnimplementedVaultServiceServer) Create(context.Context, *CreateRequest) (*CreateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Create not implemented")
 }
@@ -176,6 +196,24 @@ func RegisterVaultServiceServer(s grpc.ServiceRegistrar, srv VaultServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&VaultService_ServiceDesc, srv)
+}
+
+func _VaultService_BindWalletOwner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BindWalletOwnerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VaultServiceServer).BindWalletOwner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VaultService_BindWalletOwner_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VaultServiceServer).BindWalletOwner(ctx, req.(*BindWalletOwnerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _VaultService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -293,6 +331,10 @@ var VaultService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "vault.v1.VaultService",
 	HandlerType: (*VaultServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "BindWalletOwner",
+			Handler:    _VaultService_BindWalletOwner_Handler,
+		},
 		{
 			MethodName: "Create",
 			Handler:    _VaultService_Create_Handler,
